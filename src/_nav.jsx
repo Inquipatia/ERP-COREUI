@@ -86,6 +86,66 @@ const _nav = [
     },
   },
   {
+    component: CNavGroup,
+    name: 'ERP',
+    to: '/erp',
+    icon: <CIcon icon={cilPuzzle} customClassName="nav-icon" />,
+    items: [
+      {
+        component: CNavItem,
+        name: 'Dashboard ERP',
+        to: '/erp/dashboard',
+      },
+      {
+        component: CNavItem,
+        name: 'Usuarios',
+        to: '/erp/usuarios',
+      },
+      {
+        component: CNavItem,
+        name: 'Clientes',
+        to: '/erp/clientes',
+      },
+      {
+        component: CNavItem,
+        name: 'Materiales',
+        to: '/erp/materiales',
+      },
+      {
+        component: CNavItem,
+        name: 'Productos / Servicios',
+        to: '/erp/productos-servicios',
+      },
+      {
+        component: CNavItem,
+        name: 'Cotizaciones',
+        to: '/erp/cotizaciones',
+      },
+      {
+        component: CNavItem,
+        name: 'Documentos',
+        to: '/erp/documentos',
+      },
+      {
+        component: CNavItem,
+        name: 'Configuración Rubik',
+        to: '/erp/configuracion',
+      },
+    ],
+  },
+  {
+    component: CNavGroup,
+    name: 'Cotizador 5000',
+    icon: <CIcon icon={cilCalculator} customClassName="nav-icon" />,
+    items: [
+      {
+        component: CNavItem,
+        name: 'Nueva cotización',
+        to: '/cotizador-5000/nueva-cotizacion',
+      },
+    ],
+  },
+  {
     component: CNavTitle,
     name: 'Theme',
   },

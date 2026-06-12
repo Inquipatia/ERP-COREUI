@@ -1,0 +1,47 @@
+const PDF_API_URL = 'http://localhost:4000/export-pdf'
+
+const getFileName = (quoteData) => {
+  const quoteNumber =
+    quoteData?.quote?.quoteNumber ||
+    quoteData?.quoteData?.quoteNumber ||
+    quoteData?.quoteNumber ||
+    '8103'
+
+  return `Cotizacion-Rubik-${quoteNumber}.pdf`
+}
+
+export const exportQuoteToPdf = async (quoteData) => {
+  const response = await fetch(PDF_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(quoteData),
+  })
+
+  if (!response.ok) {
+    let message = 'No se pudo exportar la cotización a PDF.'
+
+    try {
+      const data = await response.json()
+      message = data.error || message
+    } catch (_) {
+      const text = await response.text()
+      message = text || message
+    }
+
+    throw new Error(message)
+  }
+
+  const blob = await response.blob()
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = getFileName(quoteData)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+
+  window.URL.revokeObjectURL(url)
+}

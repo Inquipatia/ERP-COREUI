@@ -17,6 +17,15 @@ import React from 'react'
 
 // Dashboard
 const Dashboard = React.lazy(() => import('./views/dashboard/Dashboard'))
+const NuevaCotizacion = React.lazy(() => import('./views/cotizador-5000/NuevaCotizacion'))
+const DashboardERP = React.lazy(() => import('./views/erp/DashboardERP'))
+const UsuariosERP = React.lazy(() => import('./views/erp/Usuarios'))
+const ClientesERP = React.lazy(() => import('./views/erp/Clientes'))
+const MaterialesERP = React.lazy(() => import('./views/erp/Materiales'))
+const ProductosServiciosERP = React.lazy(() => import('./views/erp/ProductosServicios'))
+const CotizacionesERP = React.lazy(() => import('./views/erp/Cotizaciones'))
+const DocumentosERP = React.lazy(() => import('./views/erp/documentos/Documentos'))
+const ConfiguracionRubikERP = React.lazy(() => import('./views/erp/ConfiguracionRubik'))
 const Colors = React.lazy(() => import('./views/theme/colors/Colors'))
 const Typography = React.lazy(() => import('./views/theme/typography/Typography'))
 
@@ -89,6 +98,25 @@ const Widgets = React.lazy(() => import('./views/widgets/Widgets'))
 export const routes = [
   { path: '/', exact: true, name: 'Home' },
   { path: '/dashboard', name: 'Dashboard', element: Dashboard },
+  { path: '/erp', exact: true, name: 'ERP Rubik', element: DashboardERP },
+  { path: '/erp/dashboard', name: 'Dashboard ERP', element: DashboardERP },
+  { path: '/erp/usuarios', name: 'Usuarios', element: UsuariosERP },
+  { path: '/erp/clientes', name: 'Clientes', element: ClientesERP },
+  { path: '/erp/materiales', name: 'Materiales', element: MaterialesERP },
+  {
+    path: '/erp/productos-servicios',
+    name: 'Productos / Servicios',
+    element: ProductosServiciosERP,
+  },
+  { path: '/erp/cotizaciones', name: 'Cotizaciones', element: CotizacionesERP },
+  { path: '/erp/documentos', name: 'Documentos', element: DocumentosERP },
+  { path: '/erp/configuracion', name: 'Configuración Rubik', element: ConfiguracionRubikERP },
+  { path: '/cotizador-5000', exact: true, name: 'Cotizador 5000' },
+  {
+    path: '/cotizador-5000/nueva-cotizacion',
+    name: 'Nueva cotización',
+    element: NuevaCotizacion,
+  },
   { path: '/theme', name: 'Theme', element: Colors, exact: true },
   { path: '/theme/colors', name: 'Colors', element: Colors },
   { path: '/theme/typography', name: 'Typography', element: Typography },
