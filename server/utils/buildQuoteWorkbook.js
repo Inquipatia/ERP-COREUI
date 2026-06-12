@@ -258,6 +258,80 @@ const writeMoney = (cell, value) => {
   cell.value = Math.round(getNumber(value))
   cell.numFmt = MONEY_FORMAT
 }
+const applyCenteredCellStyle = (cell, options = {}) => {
+  cell.alignment = {
+    ...(cell.alignment || {}),
+    horizontal: options.horizontal || 'center',
+    vertical: options.vertical || 'middle',
+    wrapText: options.wrapText ?? true,
+    shrinkToFit: false,
+  }
+
+  cell.font = {
+    ...(cell.font || {}),
+    name: options.fontName || 'Arial',
+    size: options.fontSize || cell.font?.size || 10,
+    bold: options.bold ?? cell.font?.bold ?? false,
+  }
+}
+
+const applyHeaderSectionStyles = (worksheet) => {
+  const centeredCells = [
+    // Datos Rubik / cliente / cotización
+    'C6',
+    'C7',
+    'C8',
+    'C9',
+    'C10',
+    'C11',
+
+    // Nº cotización / fecha / vendedor / datos cliente
+    'F6',
+    'F7',
+    'F8',
+    'F9',
+    'F10',
+    'F11',
+    'F12',
+  ]
+
+  centeredCells.forEach((address) => {
+    applyCenteredCellStyle(worksheet.getCell(address), {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+      fontName: 'Arial',
+      fontSize: 10,
+    })
+  })
+
+    // Estos son los campos que más se notaban desalineados en PDF:
+    // cliente, atención, RUT, teléfono, comuna y condición.
+    ;['C9', 'F9', 'F10', 'F11', 'F12'].forEach((address) => {
+      applyCenteredCellStyle(worksheet.getCell(address), {
+        horizontal: 'center',
+        vertical: 'middle',
+        wrapText: true,
+        fontName: 'Arial',
+        fontSize: 10,
+      })
+    })
+}
+
+const applyMoneyCellStyle = (cell) => {
+  cell.alignment = {
+    ...(cell.alignment || {}),
+    horizontal: 'right',
+    vertical: 'middle',
+    wrapText: true,
+    shrinkToFit: false,
+  }
+
+  cell.font = {
+    ...(cell.font || {}),
+    name: 'Arial',
+  }
+}
 
 const normalizePayload = (quotePayload = {}) => {
   const company = quotePayload.company || quotePayload.rubikCompany || {}
@@ -354,14 +428,15 @@ const applyPrintSettings = (worksheet, rows) => {
     printArea,
     printTitlesRow: '16:16',
     margins: {
-      left: 0.18,
-      right: 0.18,
-      top: 0.25,
-      bottom: 0.25,
+      left: 0.25,
+      right: 0.25,
+      top: 0.35,
+      bottom: 0.35,
       header: 0,
       footer: 0,
     },
   }
+  worksheet.properties.defaultRowHeight = 18
 
   addPageBreaks(worksheet, lowerSectionRow || lastContentRow + 1, lastContentRow)
 
@@ -414,6 +489,7 @@ const buildQuoteWorkbook = async (templatePath, quotePayload) => {
     copyRowStyle(worksheet, ITEM_TEMPLATE_ROW, rowNumber)
     clearItemRow(worksheet, rowNumber)
   }
+  /*desde acá se empiezan a insertar los items para los documentos*/
 
   worksheet.getCell('C6').value = data.company.address || data.company.businessName
   worksheet.getCell('C7').value = data.company.phone
@@ -429,6 +505,8 @@ const buildQuoteWorkbook = async (templatePath, quotePayload) => {
   worksheet.getCell('F10').value = data.client.phone || data.client.clientPhone || ''
   worksheet.getCell('F11').value = data.client.commune || data.client.comuna || ''
   worksheet.getCell('F12').value = data.quote.condition || data.quote.condicion || ''
+
+  applyHeaderSectionStyles(worksheet)
 
   items.forEach((item, index) => {
     const rowNumber = ITEM_START_ROW + index
@@ -488,9 +566,20 @@ const buildQuoteWorkbook = async (templatePath, quotePayload) => {
   const totalRow = findRowByLabel(worksheet, 'TOTAL')
   const lowerSectionRow = findRowByLabel(worksheet, 'DATOS DE TRANSFERENCIA') || netRow
 
-  if (netRow) writeMoney(worksheet.getCell(`F${netRow}`), data.amounts.net)
-  if (ivaRow) writeMoney(worksheet.getCell(`F${ivaRow}`), data.amounts.iva)
-  if (totalRow) writeMoney(worksheet.getCell(`F${totalRow}`), data.amounts.total)
+  if (netRow) {
+    writeMoney(worksheet.getCell(`F${netRow}`), data.amounts.net)
+    applyMoneyCellStyle(worksheet.getCell(`F${netRow}`))
+  }
+
+  if (ivaRow) {
+    writeMoney(worksheet.getCell(`F${ivaRow}`), data.amounts.iva)
+    applyMoneyCellStyle(worksheet.getCell(`F${ivaRow}`))
+  }
+
+  if (totalRow) {
+    writeMoney(worksheet.getCell(`F${totalRow}`), data.amounts.total)
+    applyMoneyCellStyle(worksheet.getCell(`F${totalRow}`))
+  }
 
   applyPrintSettings(worksheet, {
     items,

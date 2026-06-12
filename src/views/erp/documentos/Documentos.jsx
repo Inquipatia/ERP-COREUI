@@ -29,7 +29,9 @@ import {
   CTableHeaderCell,
   CTableRow,
 } from '@coreui/react'
-import { mockQuotes } from '../../../data/mockQuotes'
+import { CChartBar, CChartDoughnut } from '@coreui/react-chartjs'
+import { exportListToExcel } from '../../../utils/exportListToExcel'
+
 import {
   deleteDocument,
   deleteQuoteByDocument,
@@ -39,7 +41,6 @@ import {
   duplicateDocument,
   getNumberValue,
   normalizeDocument,
-  normalizeQuoteRecord,
   normalizeTags,
   parseDocumentDate,
   upsertDocument,
@@ -57,6 +58,8 @@ const emptyFilters = {
   dateFrom: '',
   dateTo: '',
 }
+
+const CHART_COLORS = ['#3399ff', '#2eb85c', '#f9b115', '#e55353', '#6f42c1', '#39f', '#636f83']
 
 const getStatusColor = (status) => {
   if (status === 'Adjudicada' || status === 'Emitida') return 'success'
@@ -89,21 +92,23 @@ const formatDate = (date) => {
   return new Intl.DateTimeFormat('es-CL').format(parsedDate)
 }
 
+const isQuoteDocument = (document) =>
+  document.tipoDocumento === 'Cotización' || document.tipoDocumento === 'Cotizaci¢n'
+
 const Documentos = () => {
   const [documents, setDocuments] = useDocumentStorage()
-  const [, setQuotes] = useLocalStorageState(
-    STORAGE_KEYS.quotes,
-    mockQuotes.map(normalizeQuoteRecord),
-  )
+  const [, setQuotes] = useLocalStorageState(STORAGE_KEYS.quotes, [])
   const [filters, setFilters] = useState(emptyFilters)
   const [selectedDocument, setSelectedDocument] = useState(null)
   const [editingDocument, setEditingDocument] = useState(null)
   const [message, setMessage] = useState('')
+  const [exportingDocumentId, setExportingDocumentId] = useState(null)
 
   const filteredDocuments = useMemo(
     () => documents.filter((document) => documentMatchesFilters(document, filters)),
     [documents, filters],
   )
+
   const documentSummary = useMemo(() => {
     const totalAmount = documents.reduce(
       (total, document) => total + getNumberValue(document.total),
@@ -113,8 +118,58 @@ const Documentos = () => {
     const activeCount = documents.filter((document) =>
       ['Emitida', 'Enviada', 'Adjudicada'].includes(document.estado),
     ).length
+
     return { totalAmount, draftCount, activeCount }
   }, [documents])
+
+  const documentsByStatus = useMemo(
+    () =>
+      DOCUMENT_STATUSES.map((status) => ({
+        label: status,
+        count: documents.filter((document) => document.estado === status).length,
+      })).filter((item) => item.count > 0),
+    [documents],
+  )
+
+  const documentsByType = useMemo(
+    () =>
+      DOCUMENT_TYPES.map((type) => ({
+        label: type,
+        count: documents.filter((document) => document.tipoDocumento === type).length,
+      })).filter((item) => item.count > 0),
+    [documents],
+  )
+
+  const statusChartData = useMemo(
+    () => ({
+      labels: documentsByStatus.map((item) => item.label),
+      datasets: [
+        {
+          label: 'Documentos',
+          backgroundColor: documentsByStatus.map(
+            (_, index) => CHART_COLORS[index % CHART_COLORS.length],
+          ),
+          data: documentsByStatus.map((item) => item.count),
+        },
+      ],
+    }),
+    [documentsByStatus],
+  )
+
+  const typeChartData = useMemo(
+    () => ({
+      labels: documentsByType.map((item) => item.label),
+      datasets: [
+        {
+          label: 'Documentos',
+          backgroundColor: '#3399ff',
+          data: documentsByType.map((item) => item.count),
+        },
+      ],
+    }),
+    [documentsByType],
+  )
+
 
   const handleFilterChange = (event) => {
     const { name, value } = event.target
@@ -141,8 +196,147 @@ const Documentos = () => {
     setMessage('Documento eliminado localmente.')
   }
 
+  const getDocumentPayload = (document) => {
+    if (document.payload) {
+      return document.payload
+    }
+
+    return {
+      company: {},
+      seller: {
+        name: document.vendedor || '',
+        email: '',
+      },
+      client: {
+        client: document.cliente || '',
+        company: document.empresa || '',
+        attention: document.cliente || '',
+        rut: '',
+        phone: '',
+        email: '',
+        comuna: '',
+        commune: '',
+        address: '',
+      },
+      quote: {
+        quoteNumber: document.numeroDocumento || '',
+        date: document.fecha || '',
+        subject: document.observaciones || '',
+        condition: '',
+        ivaRate: 19,
+      },
+      quoteItems: document.items || [],
+      amounts: {
+        net: document.montoNeto || 0,
+        iva: document.iva || 0,
+        total: document.total || 0,
+      },
+    }
+  }
+
+  const handleDownloadExcel = async (document) => {
+    if (!isQuoteDocument(document)) {
+      setMessage('La exportación Excel por ahora está disponible para cotizaciones.')
+      return
+    }
+
+    setExportingDocumentId(`${document.id}-excel`)
+
+    try {
+      const { exportQuoteToExcel } = await import('../../../utils/exportQuoteToExcel')
+      await exportQuoteToExcel(getDocumentPayload(document))
+      setMessage(`Excel generado para el documento ${document.numeroDocumento}.`)
+    } catch (error) {
+      console.error('Error exportando Excel desde documentos:', error)
+      setMessage(error.message || 'No se pudo generar el Excel del documento.')
+    } finally {
+      setExportingDocumentId(null)
+    }
+  }
+
+  const handleDownloadPdf = async (document) => {
+    if (!isQuoteDocument(document)) {
+      setMessage('La exportación PDF por ahora está disponible para cotizaciones.')
+      return
+    }
+
+    setExportingDocumentId(`${document.id}-pdf`)
+
+    try {
+      const { exportQuoteToPdf } = await import('../../../utils/exportQuoteToPdf')
+      await exportQuoteToPdf(getDocumentPayload(document))
+      setMessage(`PDF generado para el documento ${document.numeroDocumento}.`)
+    } catch (error) {
+      console.error('Error exportando PDF desde documentos:', error)
+      setMessage(error.message || 'No se pudo generar el PDF del documento.')
+    } finally {
+      setExportingDocumentId(null)
+    }
+  }
+
+
+
+  const handleExportDocumentsList = async () => {
+    try {
+      await exportListToExcel({
+        fileName: 'Listado-Documentos-ERP-Rubik',
+        sheetName: 'Documentos',
+        title: 'Listado de documentos ERP Rubik',
+        columns: [
+          { header: 'Tipo', key: 'tipoDocumento', width: 22 },
+          { header: 'N° documento', key: 'numeroDocumento', width: 18 },
+          { header: 'Fecha', key: 'fecha', width: 16 },
+          { header: 'Cliente', key: 'cliente', width: 24 },
+          { header: 'Empresa', key: 'empresa', width: 26 },
+          { header: 'Vendedor', key: 'vendedor', width: 24 },
+          {
+            header: 'Neto',
+            key: 'montoNeto',
+            width: 16,
+            numFmt: '"$"#,##0',
+          },
+          {
+            header: 'IVA',
+            key: 'iva',
+            width: 16,
+            numFmt: '"$"#,##0',
+          },
+          {
+            header: 'Total',
+            key: 'total',
+            width: 16,
+            numFmt: '"$"#,##0',
+          },
+          { header: 'Estado', key: 'estado', width: 18 },
+          {
+            header: 'Tags',
+            key: 'tags',
+            width: 28,
+            value: (document) => document.tags.join(', '),
+          },
+          { header: 'Origen', key: 'origen', width: 20 },
+          { header: 'Observaciones', key: 'observaciones', width: 40 },
+        ],
+        rows: filteredDocuments,
+        summary: [
+          { label: 'Documentos exportados', value: filteredDocuments.length },
+          { label: 'Total documentos guardados', value: documents.length },
+          { label: 'Total comercial filtrado', value: formatCurrency(documentSummary.totalAmount) },
+          { label: 'Activos', value: documentSummary.activeCount },
+          { label: 'Borradores', value: documentSummary.draftCount },
+        ],
+      })
+
+      setMessage('Listado de documentos exportado correctamente.')
+    } catch (error) {
+      console.error('Error exportando listado de documentos:', error)
+      setMessage(error.message || 'No se pudo exportar el listado de documentos.')
+    }
+  }
+
   const handleEditSubmit = (event) => {
     event.preventDefault()
+
     const updatedDocument = normalizeDocument({
       ...editingDocument,
       montoNeto: Number(editingDocument.montoNeto) || 0,
@@ -158,14 +352,15 @@ const Documentos = () => {
     setQuotes((currentQuotes) => {
       const withoutPreviousQuote =
         previousDocument &&
-        previousDocument.tipoDocumento === 'Cotización' &&
-        (updatedDocument.tipoDocumento !== 'Cotización' ||
-          previousDocument.numeroDocumento !== updatedDocument.numeroDocumento)
+          isQuoteDocument(previousDocument) &&
+          (!isQuoteDocument(updatedDocument) ||
+            previousDocument.numeroDocumento !== updatedDocument.numeroDocumento)
           ? deleteQuoteByDocument(currentQuotes, previousDocument)
           : currentQuotes
 
       return upsertQuoteFromDocument(withoutPreviousQuote, updatedDocument)
     })
+
     setEditingDocument(null)
     setMessage(`Documento ${updatedDocument.numeroDocumento} actualizado.`)
   }
@@ -188,6 +383,7 @@ const Documentos = () => {
           </CCardBody>
         </CCard>
       </CCol>
+
       <CCol md={3} sm={6}>
         <CCard className="h-100">
           <CCardBody>
@@ -197,6 +393,7 @@ const Documentos = () => {
           </CCardBody>
         </CCard>
       </CCol>
+
       <CCol md={3} sm={6}>
         <CCard className="h-100">
           <CCardBody>
@@ -206,6 +403,7 @@ const Documentos = () => {
           </CCardBody>
         </CCard>
       </CCol>
+
       <CCol md={3} sm={6}>
         <CCard className="h-100">
           <CCardBody>
@@ -215,16 +413,90 @@ const Documentos = () => {
           </CCardBody>
         </CCard>
       </CCol>
+      <CCol xl={5}>
+        <CCard className="h-100">
+          <CCardHeader>
+            <strong>Documentos por estado</strong>{' '}
+            <small>Control visual del flujo documental</small>
+          </CCardHeader>
+          <CCardBody>
+            {documentsByStatus.length === 0 ? (
+              <CAlert color="info" className="mb-0">
+                Aún no hay estados documentales para graficar.
+              </CAlert>
+            ) : (
+              <CChartDoughnut
+                data={statusChartData}
+                options={{
+                  plugins: {
+                    legend: {
+                      position: 'bottom',
+                    },
+                  },
+                }}
+              />
+            )}
+          </CCardBody>
+        </CCard>
+      </CCol>
 
+      <CCol xl={7}>
+        <CCard className="h-100">
+          <CCardHeader>
+            <strong>Documentos por tipo</strong>{' '}
+            <small>Cotizaciones, licitaciones, compras y otros</small>
+          </CCardHeader>
+          <CCardBody>
+            {documentsByType.length === 0 ? (
+              <CAlert color="info" className="mb-0">
+                Aún no hay tipos de documentos para graficar.
+              </CAlert>
+            ) : (
+              <CChartBar
+                data={typeChartData}
+                options={{
+                  plugins: {
+                    legend: {
+                      display: false,
+                    },
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        precision: 0,
+                      },
+                    },
+                  },
+                }}
+              />
+            )}
+          </CCardBody>
+        </CCard>
+      </CCol>
       <CCol xs={12}>
         <CCard>
-          <CCardHeader className="d-flex align-items-center justify-content-between gap-3">
+          <CCardHeader className="d-flex align-items-center justify-content-between gap-3 flex-wrap">
             <div>
               <strong>Centro de documentos</strong>{' '}
               <small>Cotizaciones, licitaciones y documentos comerciales</small>
             </div>
-            <CBadge color="primary">{filteredDocuments.length} documentos</CBadge>
+
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <CBadge color="primary">{filteredDocuments.length} documentos</CBadge>
+              <CButton
+                color="success"
+                size="sm"
+                type="button"
+                variant="outline"
+                onClick={handleExportDocumentsList}
+                disabled={filteredDocuments.length === 0}
+              >
+                Exportar listado Excel
+              </CButton>
+            </div>
           </CCardHeader>
+
           <CCardBody>
             {message && (
               <CAlert color="info" dismissible onClose={() => setMessage('')}>
@@ -246,6 +518,7 @@ const Documentos = () => {
                   />
                 </CInputGroup>
               </CCol>
+
               <CCol xl={2} md={4}>
                 <CFormLabel htmlFor="tipoDocumento">Tipo</CFormLabel>
                 <CFormSelect
@@ -262,6 +535,7 @@ const Documentos = () => {
                   ))}
                 </CFormSelect>
               </CCol>
+
               <CCol xl={2} md={4}>
                 <CFormLabel htmlFor="estado">Estado</CFormLabel>
                 <CFormSelect
@@ -278,6 +552,7 @@ const Documentos = () => {
                   ))}
                 </CFormSelect>
               </CCol>
+
               <CCol xl={3} md={4}>
                 <CFormLabel>Rango monto</CFormLabel>
                 <CInputGroup>
@@ -301,6 +576,7 @@ const Documentos = () => {
                   />
                 </CInputGroup>
               </CCol>
+
               <CCol xl={3} md={6}>
                 <CFormLabel>Fecha desde / hasta</CFormLabel>
                 <CInputGroup>
@@ -320,6 +596,7 @@ const Documentos = () => {
                   />
                 </CInputGroup>
               </CCol>
+
               <CCol xl={2} md={4} className="d-flex align-items-end">
                 <CButton
                   color="secondary"
@@ -357,6 +634,7 @@ const Documentos = () => {
                     <CTableHeaderCell className="text-end">Acciones</CTableHeaderCell>
                   </CTableRow>
                 </CTableHead>
+
                 <CTableBody>
                   {filteredDocuments.map((document) => (
                     <CTableRow key={document.id}>
@@ -393,6 +671,7 @@ const Documentos = () => {
                           >
                             Ver
                           </CButton>
+
                           <CButton
                             color="secondary"
                             variant="outline"
@@ -401,6 +680,7 @@ const Documentos = () => {
                           >
                             Editar
                           </CButton>
+
                           <CButton
                             color="info"
                             variant="outline"
@@ -409,6 +689,7 @@ const Documentos = () => {
                           >
                             Duplicar
                           </CButton>
+
                           <CButton
                             color="danger"
                             variant="outline"
@@ -417,23 +698,25 @@ const Documentos = () => {
                           >
                             Eliminar
                           </CButton>
+
                           <CButton
                             color="dark"
                             variant="outline"
                             type="button"
-                            disabled={!document.archivoPdfUrl}
-                            href={document.archivoPdfUrl || undefined}
+                            disabled={exportingDocumentId === `${document.id}-pdf`}
+                            onClick={() => handleDownloadPdf(document)}
                           >
-                            PDF
+                            {exportingDocumentId === `${document.id}-pdf` ? 'PDF...' : 'PDF'}
                           </CButton>
+
                           <CButton
                             color="success"
                             variant="outline"
                             type="button"
-                            disabled={!document.archivoExcelUrl}
-                            href={document.archivoExcelUrl || undefined}
+                            disabled={exportingDocumentId === `${document.id}-excel`}
+                            onClick={() => handleDownloadExcel(document)}
                           >
-                            Excel
+                            {exportingDocumentId === `${document.id}-excel` ? 'Excel...' : 'Excel'}
                           </CButton>
                         </CButtonGroup>
                       </CTableDataCell>
@@ -483,6 +766,7 @@ const Documentos = () => {
                   <div>{selectedDocument.vendedor}</div>
                 </CCol>
               </CRow>
+
               <CTable responsive bordered>
                 <CTableBody>
                   <CTableRow>
@@ -495,10 +779,12 @@ const Documentos = () => {
                   </CTableRow>
                 </CTableBody>
               </CTable>
+
               <div className="mb-3">
                 <div className="text-body-secondary small">Observaciones</div>
                 <div>{selectedDocument.observaciones || '-'}</div>
               </div>
+
               <CTable responsive hover>
                 <CTableHead color="light">
                   <CTableRow>
@@ -552,6 +838,7 @@ const Documentos = () => {
                     ))}
                   </CFormSelect>
                 </CCol>
+
                 <CCol md={4}>
                   <CFormLabel htmlFor="editNumeroDocumento">N° documento</CFormLabel>
                   <CFormInput
@@ -561,6 +848,7 @@ const Documentos = () => {
                     onChange={handleEditChange}
                   />
                 </CCol>
+
                 <CCol md={4}>
                   <CFormLabel htmlFor="editEstado">Estado</CFormLabel>
                   <CFormSelect
@@ -576,6 +864,7 @@ const Documentos = () => {
                     ))}
                   </CFormSelect>
                 </CCol>
+
                 <CCol md={4}>
                   <CFormLabel htmlFor="editFecha">Fecha</CFormLabel>
                   <CFormInput
@@ -585,6 +874,7 @@ const Documentos = () => {
                     onChange={handleEditChange}
                   />
                 </CCol>
+
                 <CCol md={4}>
                   <CFormLabel htmlFor="editCliente">Cliente</CFormLabel>
                   <CFormInput
@@ -594,6 +884,7 @@ const Documentos = () => {
                     onChange={handleEditChange}
                   />
                 </CCol>
+
                 <CCol md={4}>
                   <CFormLabel htmlFor="editEmpresa">Empresa</CFormLabel>
                   <CFormInput
@@ -603,6 +894,7 @@ const Documentos = () => {
                     onChange={handleEditChange}
                   />
                 </CCol>
+
                 <CCol md={4}>
                   <CFormLabel htmlFor="editVendedor">Vendedor</CFormLabel>
                   <CFormInput
@@ -612,6 +904,7 @@ const Documentos = () => {
                     onChange={handleEditChange}
                   />
                 </CCol>
+
                 <CCol md={4}>
                   <CFormLabel htmlFor="editTotal">Total</CFormLabel>
                   <CFormInput
@@ -623,6 +916,7 @@ const Documentos = () => {
                     onChange={handleEditChange}
                   />
                 </CCol>
+
                 <CCol md={4}>
                   <CFormLabel htmlFor="editTags">Tags</CFormLabel>
                   <CFormInput
@@ -632,6 +926,7 @@ const Documentos = () => {
                     onChange={handleEditChange}
                   />
                 </CCol>
+
                 <CCol xs={12}>
                   <CFormLabel htmlFor="editObservaciones">Observaciones</CFormLabel>
                   <CFormTextarea
@@ -644,6 +939,7 @@ const Documentos = () => {
                 </CCol>
               </CRow>
             </CModalBody>
+
             <CModalFooter>
               <CButton
                 color="secondary"
@@ -665,3 +961,4 @@ const Documentos = () => {
 }
 
 export default Documentos
+

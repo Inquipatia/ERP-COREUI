@@ -23,7 +23,6 @@ import {
 } from '@coreui/react'
 import { mockClients } from '../../data/mockClients'
 import { mockProducts } from '../../data/mockProducts'
-import { mockQuotes } from '../../data/mockQuotes'
 import {
   rubikCommercialSettings,
   rubikCompany as defaultRubikCompany,
@@ -32,14 +31,41 @@ import { sellerProfiles } from '../../data/sellerProfiles'
 import {
   createDocumentFromQuotePayload,
   createQuoteRecordFromPayload,
+  getNextQuoteNumber,
   normalizeQuoteRecord,
   upsertDocument,
   upsertQuoteRecord,
   useDocumentStorage,
 } from '../../utils/documentStorage'
-import { createLocalId, STORAGE_KEYS, useLocalStorageState } from '../../utils/storage'
+import { createLocalId, readStorage, STORAGE_KEYS, useLocalStorageState } from '../../utils/storage'
 
 const rubikCompany = defaultRubikCompany
+
+const COMMUNE_OPTIONS = [
+  'Santiago',
+  'Providencia',
+  'Ñuñoa',
+  'Las Condes',
+  'Vitacura',
+  'La Reina',
+  'Macul',
+  'San Miguel',
+  'La Florida',
+  'Puente Alto',
+  'Maipú',
+  'Recoleta',
+  'Independencia',
+  'Otra',
+]
+
+const COMMERCIAL_CONDITIONS = [
+  'Contado',
+  '50% anticipo / 50% contra entrega',
+  'Crédito 30 días',
+  'Crédito 45 días',
+  'Contra orden de compra',
+  'Transferencia bancaria',
+]
 
 const formatDateForQuote = (date) => {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
@@ -106,6 +132,49 @@ const getItemTotal = (item) => getNumberValue(item.quantity) * getNumberValue(it
 
 const hasUnitValue = (value) => value !== '' && value !== null && value !== undefined
 
+const normalizeRut = (rut) =>
+  String(rut || '')
+    .replace(/[.\-\s]/g, '')
+    .toUpperCase()
+
+const isValidChileanRut = (rut) => {
+  const normalizedRut = normalizeRut(rut)
+
+  if (!/^\d{7,8}[\dK]$/.test(normalizedRut)) {
+    return false
+  }
+
+  const body = normalizedRut.slice(0, -1)
+  const verificationDigit = normalizedRut.slice(-1)
+  let multiplier = 2
+  let sum = 0
+
+  for (let index = body.length - 1; index >= 0; index -= 1) {
+    sum += Number(body[index]) * multiplier
+    multiplier = multiplier === 7 ? 2 : multiplier + 1
+  }
+
+  const result = 11 - (sum % 11)
+  const expectedDigit = result === 11 ? '0' : result === 10 ? 'K' : String(result)
+
+  return verificationDigit === expectedDigit
+}
+
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim())
+
+const isValidPhone = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '')
+  return digits.length >= 8 && digits.length <= 11
+}
+
+const getInitialQuoteNumber = () =>
+  String(
+    getNextQuoteNumber(
+      readStorage(STORAGE_KEYS.quotes, []),
+      readStorage(STORAGE_KEYS.documents, []),
+    ),
+  )
+
 const isEmptyQuoteItem = (item) =>
   item.description.trim().length === 0 &&
   !hasUnitValue(item.unitValue) &&
@@ -148,7 +217,7 @@ const NuevaCotizacion = () => {
     address: '',
   })
   const [quoteData, setQuoteData] = useState({
-    quoteNumber: '8103',
+    quoteNumber: getInitialQuoteNumber(),
     date: formatDateForQuote(new Date()),
     subject: '',
     condition: 'Contado',
@@ -161,10 +230,7 @@ const NuevaCotizacion = () => {
     STORAGE_KEYS.products,
     mockProducts.map(normalizeProduct),
   )
-  const [storedQuotes, setStoredQuotes] = useLocalStorageState(
-    STORAGE_KEYS.quotes,
-    mockQuotes.map(normalizeQuoteRecord),
-  )
+  const [storedQuotes, setStoredQuotes] = useLocalStorageState(STORAGE_KEYS.quotes, [])
   const [, setStoredDocuments] = useDocumentStorage()
   const [commercialSettings] = useLocalStorageState(
     STORAGE_KEYS.commercialSettings,
@@ -190,6 +256,10 @@ const NuevaCotizacion = () => {
     () => products.filter((product) => product.status !== 'Inactivo'),
     [products],
   )
+  const communeOptions = useMemo(() => {
+    const storedCommunes = clients.map((client) => client.commune).filter(Boolean)
+    return [...new Set([...COMMUNE_OPTIONS, ...storedCommunes, clientData.comuna].filter(Boolean))]
+  }, [clientData.comuna, clients])
   const ivaRate = normalizeCommercialSettings(commercialSettings).ivaRate
   const currentValidItems = useMemo(
     () => items.filter(isValidQuoteItem).map(cloneQuoteItem),
@@ -200,7 +270,57 @@ const NuevaCotizacion = () => {
     [currentValidItems, ivaRate],
   )
 
+  const validateQuoteForm = () => {
+    const errors = []
+    const requiredFields = [
+      { label: 'Cliente', value: clientData.client },
+      { label: 'Empresa', value: clientData.company },
+      { label: 'Atención', value: clientData.attention },
+      { label: 'RUT Cliente', value: clientData.rut },
+      { label: 'Teléfono Cliente', value: clientData.phone },
+      { label: 'Email Cliente', value: clientData.email },
+      { label: 'Comuna', value: clientData.comuna },
+      { label: 'N° Cotización', value: quoteData.quoteNumber },
+      { label: 'Tema', value: quoteData.subject },
+      { label: 'Condición', value: quoteData.condition },
+    ]
+
+    const missingFields = requiredFields
+      .filter((field) => String(field.value || '').trim().length === 0)
+      .map((field) => field.label)
+
+    if (missingFields.length > 0) {
+      errors.push(`Completa los campos obligatorios: ${missingFields.join(', ')}.`)
+    }
+
+    if (clientData.rut && !isValidChileanRut(clientData.rut)) {
+      errors.push('Ingresa un RUT chileno válido para el cliente.')
+    }
+
+    if (clientData.email && !isValidEmail(clientData.email)) {
+      errors.push('Ingresa un email válido para el cliente.')
+    }
+
+    if (clientData.phone && !isValidPhone(clientData.phone)) {
+      errors.push('Ingresa un teléfono válido para el cliente.')
+    }
+
+    if (getNumberValue(quoteData.quoteNumber) < 8103) {
+      errors.push('El N° de cotización debe ser igual o mayor a 8103.')
+    }
+
+    return errors
+  }
+
   const buildQuotePayload = () => {
+    const formErrors = validateQuoteForm()
+
+    if (formErrors.length > 0) {
+      return {
+        error: formErrors.join(' '),
+      }
+    }
+
     const quoteItems = items.filter((item) => !isEmptyQuoteItem(item))
 
     if (quoteItems.length === 0) {
@@ -683,12 +803,19 @@ const NuevaCotizacion = () => {
                   </CCol>
                   <CCol md={6}>
                     <CFormLabel htmlFor="comuna">Comuna</CFormLabel>
-                    <CFormInput
+                    <CFormSelect
                       id="comuna"
                       name="comuna"
                       value={clientData.comuna}
                       onChange={handleClientChange}
-                    />
+                    >
+                      <option value="">Selecciona comuna</option>
+                      {communeOptions.map((commune) => (
+                        <option key={commune} value={commune}>
+                          {commune}
+                        </option>
+                      ))}
+                    </CFormSelect>
                   </CCol>
                   <CCol md={6}>
                     <CFormLabel htmlFor="clientAddress">Dirección Cliente</CFormLabel>
@@ -741,11 +868,11 @@ const NuevaCotizacion = () => {
                       value={quoteData.condition}
                       onChange={handleQuoteChange}
                     >
-                      <option value="Contado">Contado</option>
-                      <option value="50% anticipo / 50% contra entrega">
-                        50% anticipo / 50% contra entrega
-                      </option>
-                      <option value="Crédito 30 días">Crédito 30 días</option>
+                      {COMMERCIAL_CONDITIONS.map((condition) => (
+                        <option key={condition} value={condition}>
+                          {condition}
+                        </option>
+                      ))}
                     </CFormSelect>
                   </CCol>
                 </CRow>

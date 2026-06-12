@@ -1,10 +1,4 @@
-import {
-  createLocalId,
-  deleteCollectionItem,
-  STORAGE_KEYS,
-  upsertCollectionItem,
-  useLocalStorageState,
-} from './storage'
+import { createLocalId, deleteCollectionItem, STORAGE_KEYS, useLocalStorageState } from './storage'
 
 export const DOCUMENT_TYPES = [
   'Cotización',
@@ -22,6 +16,8 @@ export const DOCUMENT_STATUSES = [
   'Rechazada',
   'Cerrada',
 ]
+
+export const QUOTE_NUMBER_START = 8103
 
 export const getNumberValue = (value) => Number(value) || 0
 
@@ -108,20 +104,25 @@ export const upsertDocument = (documents, document) => {
   const nextDocument = normalizeDocument(document)
   const nextBusinessKey = getDocumentBusinessKey(nextDocument)
   let documentWasUpdated = false
+  let mergedDocument = nextDocument
+  const otherDocuments = []
 
-  const nextDocuments = normalizedDocuments.map((currentDocument) => {
+  normalizedDocuments.forEach((currentDocument) => {
     const sameId = currentDocument.id && nextDocument.id && currentDocument.id === nextDocument.id
     const sameBusinessKey = getDocumentBusinessKey(currentDocument) === nextBusinessKey
 
     if (!sameId && !sameBusinessKey) {
-      return currentDocument
+      otherDocuments.push(currentDocument)
+      return
     }
 
     documentWasUpdated = true
-    return mergeDocumentRecords(currentDocument, nextDocument)
+    mergedDocument = mergeDocumentRecords(currentDocument, mergedDocument)
   })
 
-  return documentWasUpdated ? nextDocuments : [...nextDocuments, nextDocument]
+  return documentWasUpdated
+    ? [...otherDocuments, mergedDocument]
+    : [...otherDocuments, nextDocument]
 }
 
 export const deleteDocument = (documents, documentId) =>
@@ -215,18 +216,51 @@ export const createQuoteRecordFromDocument = (document) =>
 
 export const getQuoteRecordKey = (quote) => String(quote.quoteNumber || '')
 
-export const upsertQuoteRecord = (quotes, quote) =>
-  upsertCollectionItem(quotes, quote, {
-    getKey: getQuoteRecordKey,
-    normalizeItem: normalizeQuoteRecord,
-    mergeItems: (currentQuote, nextQuote) => ({
+export const getNextQuoteNumber = (
+  quotes = [],
+  documents = [],
+  startNumber = QUOTE_NUMBER_START,
+) => {
+  const quoteNumbers = (Array.isArray(quotes) ? quotes : [])
+    .map(normalizeQuoteRecord)
+    .map((quote) => Number(quote.quoteNumber))
+    .filter(Number.isFinite)
+
+  const documentQuoteNumbers = (Array.isArray(documents) ? documents : [])
+    .map(normalizeDocument)
+    .filter((document) => document.tipoDocumento === 'Cotización')
+    .map((document) => Number(document.numeroDocumento))
+    .filter(Number.isFinite)
+
+  return Math.max(startNumber - 1, ...quoteNumbers, ...documentQuoteNumbers) + 1
+}
+
+export const upsertQuoteRecord = (quotes, quote) => {
+  const normalizedQuotes = (Array.isArray(quotes) ? quotes : []).map(normalizeQuoteRecord)
+  const nextQuote = normalizeQuoteRecord(quote)
+  const nextKey = getQuoteRecordKey(nextQuote)
+  let quoteWasUpdated = false
+  let mergedQuote = nextQuote
+  const otherQuotes = []
+
+  normalizedQuotes.forEach((currentQuote) => {
+    if (getQuoteRecordKey(currentQuote) !== nextKey) {
+      otherQuotes.push(currentQuote)
+      return
+    }
+
+    quoteWasUpdated = true
+    mergedQuote = normalizeQuoteRecord({
       ...currentQuote,
-      ...nextQuote,
-      id: currentQuote.id || nextQuote.id,
-      createdAt: currentQuote.createdAt || nextQuote.createdAt,
-      updatedAt: nextQuote.updatedAt || new Date().toISOString(),
-    }),
+      ...mergedQuote,
+      id: currentQuote.id || mergedQuote.id,
+      createdAt: currentQuote.createdAt || mergedQuote.createdAt,
+      updatedAt: mergedQuote.updatedAt || new Date().toISOString(),
+    })
   })
+
+  return quoteWasUpdated ? [...otherQuotes, mergedQuote] : [...otherQuotes, nextQuote]
+}
 
 export const upsertQuoteFromDocument = (quotes, document) => {
   if (document.tipoDocumento !== 'Cotización') {

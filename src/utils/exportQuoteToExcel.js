@@ -5,11 +5,13 @@ const TEMPLATE_ITEM_START_ROW = 17
 const TEMPLATE_ITEM_END_ROW = 31
 const TEMPLATE_ITEM_ROW_COUNT = TEMPLATE_ITEM_END_ROW - TEMPLATE_ITEM_START_ROW + 1
 const LOWER_ZONE_START_ROW = TEMPLATE_ITEM_END_ROW + 1
+
 const TOTAL_LABELS = {
   net: 'NETO',
   iva: 'IVA 19%',
   total: 'TOTAL',
 }
+
 const CLP_FORMAT = '"$"#,##0'
 
 const clone = (value) => (value ? JSON.parse(JSON.stringify(value)) : value)
@@ -19,9 +21,7 @@ const getNumberValue = (value) => Number(value) || 0
 const getItemTotal = (item) => getNumberValue(item.quantity) * getNumberValue(item.unitValue)
 
 const parseInputDate = (date) => {
-  if (!date) {
-    return ''
-  }
+  if (!date) return ''
 
   if (/^\d{2}-\d{2}-\d{4}$/.test(date)) {
     const [day, month, year] = date.split('-').map(Number)
@@ -35,9 +35,7 @@ const parseInputDate = (date) => {
 const parseMergeRange = (range) => {
   const match = range.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/)
 
-  if (!match) {
-    return null
-  }
+  if (!match) return null
 
   return {
     startColumn: match[1],
@@ -68,7 +66,7 @@ const unmergeRanges = (worksheet, ranges) => {
     try {
       worksheet.unMergeCells(range)
     } catch {
-      // The template can be edited later; ignore ranges that are already unmerged.
+      // Mantiene exportación si la plantilla cambia.
     }
   })
 }
@@ -78,7 +76,7 @@ const mergeRanges = (worksheet, ranges) => {
     try {
       worksheet.mergeCells(range)
     } catch {
-      // Keep exporting even if a future template edit removes a range.
+      // Mantiene exportación si la plantilla cambia.
     }
   })
 }
@@ -102,13 +100,13 @@ const mergeItemRow = (worksheet, rowNumber) => {
   try {
     worksheet.unMergeCells(`B${rowNumber}:D${rowNumber}`)
   } catch {
-    // The row may not have an existing description merge.
+    // Puede no existir merge previo.
   }
 
   try {
     worksheet.unMergeCells(`F${rowNumber}:G${rowNumber}`)
   } catch {
-    // The row may not have an existing total merge.
+    // Puede no existir merge previo.
   }
 
   worksheet.mergeCells(`B${rowNumber}:D${rowNumber}`)
@@ -127,9 +125,7 @@ const estimateDescriptionRowHeight = (description, baseHeight = 42) => {
 const normalizeItemRows = (worksheet, itemCount) => {
   const extraRows = Math.max(0, itemCount - TEMPLATE_ITEM_ROW_COUNT)
 
-  if (extraRows === 0) {
-    return 0
-  }
+  if (extraRows === 0) return 0
 
   const lowerZoneMergeRanges = getMergeRangesFromRow(worksheet, LOWER_ZONE_START_ROW)
   const shiftedLowerZoneMergeRanges = lowerZoneMergeRanges
@@ -149,12 +145,101 @@ const writeCell = (worksheet, address, value) => {
   worksheet.getCell(address).value = value ?? ''
 }
 
+const setCellAlignment = (cell, options = {}) => {
+  cell.alignment = {
+    ...clone(cell.alignment),
+    horizontal: options.horizontal || 'center',
+    vertical: options.vertical || 'middle',
+    wrapText: options.wrapText ?? true,
+  }
+}
+
 const setWrapText = (cell) => {
   cell.alignment = {
     ...clone(cell.alignment),
     vertical: 'top',
     wrapText: true,
   }
+}
+
+const applyPrintSetup = (worksheet) => {
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    verticalCentered: false,
+    margins: {
+      left: 0.25,
+      right: 0.25,
+      top: 0.4,
+      bottom: 0.4,
+      header: 0.15,
+      footer: 0.15,
+    },
+  }
+
+  worksheet.properties.defaultRowHeight = 20
+
+  // Mejora vista de impresión para que no se vea chico.
+  worksheet.views = [
+    {
+      state: 'normal',
+      showGridLines: false,
+      zoomScale: 100,
+    },
+  ]
+
+  // Columnas A:H según la plantilla actual.
+  worksheet.getColumn('A').width = 10
+  worksheet.getColumn('B').width = 22
+  worksheet.getColumn('C').width = 22
+  worksheet.getColumn('D').width = 22
+  worksheet.getColumn('E').width = 16
+  worksheet.getColumn('F').width = 16
+  worksheet.getColumn('G').width = 16
+  worksheet.getColumn('H').width = 28
+
+  // Área estimada. Excel ajustará a una página de ancho.
+  worksheet.pageSetup.printArea = `A1:H${Math.max(45, worksheet.rowCount)}`
+}
+
+const applyHeaderAlignment = (worksheet) => {
+  // Primera sección de datos principales.
+  // Estos campos son los que actualmente escribes en C9:C11 y F6:F12.
+  const centeredCells = [
+    'C6',
+    'C7',
+    'C8',
+    'C9',
+    'C10',
+    'C11',
+    'F6',
+    'F7',
+    'F8',
+    'F9',
+    'F10',
+    'F11',
+    'F12',
+  ]
+
+  centeredCells.forEach((address) => {
+    const cell = worksheet.getCell(address)
+
+    setCellAlignment(cell, {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    })
+
+    cell.font = {
+      ...clone(cell.font),
+      name: 'Arial',
+      size: cell.font?.size || 10,
+    }
+  })
 }
 
 const writeCompanyClientAndQuoteData = (worksheet, quotePayload) => {
@@ -176,6 +261,8 @@ const writeCompanyClientAndQuoteData = (worksheet, quotePayload) => {
   writeCell(worksheet, 'F10', client.phone)
   writeCell(worksheet, 'F11', client.comuna)
   writeCell(worksheet, 'F12', quote.condition)
+
+  applyHeaderAlignment(worksheet)
 }
 
 const writeItems = (worksheet, quoteItems) => {
@@ -196,8 +283,24 @@ const writeItems = (worksheet, quoteItems) => {
     worksheet.getCell(`F${rowNumber}`).value = getItemTotal(item)
     worksheet.getCell(`H${rowNumber}`).value = item.observations || ''
 
+    setCellAlignment(worksheet.getCell(`A${rowNumber}`), {
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    })
     setWrapText(worksheet.getCell(`B${rowNumber}`))
+    setCellAlignment(worksheet.getCell(`E${rowNumber}`), {
+      horizontal: 'right',
+      vertical: 'middle',
+      wrapText: true,
+    })
+    setCellAlignment(worksheet.getCell(`F${rowNumber}`), {
+      horizontal: 'right',
+      vertical: 'middle',
+      wrapText: true,
+    })
     setWrapText(worksheet.getCell(`H${rowNumber}`))
+
     worksheet.getCell(`E${rowNumber}`).numFmt = CLP_FORMAT
     worksheet.getCell(`F${rowNumber}`).numFmt = CLP_FORMAT
   })
@@ -206,9 +309,7 @@ const writeItems = (worksheet, quoteItems) => {
 const clearUnusedItemRows = (worksheet, itemCount) => {
   const firstUnusedRow = TEMPLATE_ITEM_START_ROW + itemCount
 
-  if (firstUnusedRow > TEMPLATE_ITEM_END_ROW) {
-    return
-  }
+  if (firstUnusedRow > TEMPLATE_ITEM_END_ROW) return
 
   for (let rowNumber = firstUnusedRow; rowNumber <= TEMPLATE_ITEM_END_ROW; rowNumber += 1) {
     copyRowStyle(worksheet, TEMPLATE_ITEM_START_ROW, rowNumber)
@@ -245,12 +346,15 @@ const findRowByColumnValue = (worksheet, column, value) => {
 }
 
 const writeTotalCell = (worksheet, rowNumber, value) => {
-  if (!rowNumber) {
-    return
-  }
+  if (!rowNumber) return
 
   worksheet.getCell(`F${rowNumber}`).value = value
   worksheet.getCell(`F${rowNumber}`).numFmt = CLP_FORMAT
+  setCellAlignment(worksheet.getCell(`F${rowNumber}`), {
+    horizontal: 'right',
+    vertical: 'middle',
+    wrapText: true,
+  })
 }
 
 const writeTotals = (worksheet, quotePayload) => {
@@ -259,6 +363,7 @@ const writeTotals = (worksheet, quotePayload) => {
     quotePayload.quoteItems.reduce((total, item) => total + getItemTotal(item), 0)
   const iva = quotePayload.amounts?.iva ?? net * 0.19
   const total = quotePayload.amounts?.total ?? net + iva
+
   const netRow = findRowByColumnValue(worksheet, 'E', TOTAL_LABELS.net)
   const ivaRow = findRowByColumnValue(worksheet, 'E', TOTAL_LABELS.iva)
   const totalRow = findRowByColumnValue(worksheet, 'E', TOTAL_LABELS.total)
@@ -275,13 +380,17 @@ const getSafeQuoteNumber = (quoteNumber) =>
 
 export const populateQuoteWorkbook = (workbook, quotePayload) => {
   const worksheet = workbook.getWorksheet('Cotizacion Rubik') || workbook.worksheets[0]
-  const quoteItems = quotePayload.quoteItems
+  const quoteItems = quotePayload.quoteItems || []
 
+  applyPrintSetup(worksheet)
   normalizeItemRows(worksheet, quoteItems.length)
   writeCompanyClientAndQuoteData(worksheet, quotePayload)
   writeItems(worksheet, quoteItems)
   clearUnusedItemRows(worksheet, quoteItems.length)
   writeTotals(worksheet, quotePayload)
+
+  // Reaplicar después de insertar filas, para que el área de impresión quede bien.
+  applyPrintSetup(worksheet)
 
   workbook.calcProperties.fullCalcOnLoad = true
 }
