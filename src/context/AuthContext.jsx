@@ -3,6 +3,7 @@ import {
   canAccessPath as canAccessAuthPath,
   clearCurrentUser,
   getCurrentUser,
+  getDefaultRouteForUser,
   loginWithCredentials,
   userHasPermission,
 } from '../utils/authStorage'
@@ -31,6 +32,7 @@ export const AuthProvider = ({ children }) => {
       },
       hasPermission: (permission) => userHasPermission(currentUser, permission),
       canAccessPath: (pathname) => canAccessAuthPath(currentUser, pathname),
+      getDefaultRoute: () => getDefaultRouteForUser(currentUser),
     }),
     [currentUser],
   )

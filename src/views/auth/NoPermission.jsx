@@ -1,11 +1,11 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CButton, CCard, CCardBody, CCol, CContainer, CRow } from '@coreui/react'
+import { CBadge, CButton, CCard, CCardBody, CCol, CContainer, CRow } from '@coreui/react'
 import { useAuth } from '../../context/AuthContext'
 
 const NoPermission = () => {
   const navigate = useNavigate()
-  const { currentUser, logout } = useAuth()
+  const { currentUser, getDefaultRoute, logout } = useAuth()
 
   const handleLogout = () => {
     logout()
@@ -23,14 +23,25 @@ const NoPermission = () => {
                 <p className="text-body-secondary mb-1">
                   Tu perfil no tiene acceso a esta sección del ERP Rubik.
                 </p>
+
                 {currentUser && (
-                  <p className="text-body-secondary mb-4">
-                    {currentUser.name} · {currentUser.role} · {currentUser.area}
-                  </p>
+                  <div className="mb-4">
+                    <div className="fw-semibold">{currentUser.name}</div>
+                    <div className="small text-body-secondary">{currentUser.email}</div>
+                    <div className="d-flex justify-content-center gap-2 flex-wrap mt-2">
+                      <CBadge color="primary">{currentUser.role}</CBadge>
+                      <CBadge color="secondary">{currentUser.area || 'Sin área'}</CBadge>
+                    </div>
+                  </div>
                 )}
+
                 <div className="d-flex justify-content-center gap-2 flex-wrap">
-                  <CButton color="primary" type="button" onClick={() => navigate('/erp/dashboard')}>
-                    Ir al dashboard
+                  <CButton
+                    color="primary"
+                    type="button"
+                    onClick={() => navigate(getDefaultRoute ? getDefaultRoute() : '/erp/dashboard')}
+                  >
+                    Ir a mi inicio
                   </CButton>
                   <CButton color="secondary" type="button" variant="outline" onClick={handleLogout}>
                     Cerrar sesión

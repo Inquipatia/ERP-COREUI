@@ -9,7 +9,6 @@ import {
   CCardHeader,
   CCol,
   CForm,
-  CFormCheck,
   CFormInput,
   CFormLabel,
   CFormSelect,
@@ -33,20 +32,9 @@ import { useAuth } from '../../../context/AuthContext'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 import { STORAGE_KEYS, useLocalStorageState } from '../../../utils/storage'
 import {
-  addWorkOrderComment,
-  calculateChecklistProgress,
-  calculateWorkOrderProgress,
-  canUserCreateWorkOrder,
-  canUserUpdateWorkOrder,
-  canUserViewWorkOrder,
   emptyWorkOrder,
-  getAvailableWorkOrderActions,
-  getWorkOrderProgressColor,
   mockWorkOrders,
   normalizeWorkOrder,
-  toggleWorkOrderDeliverable,
-  updateWorkOrderProgress,
-  updateWorkOrderStatus,
   WORK_ORDER_AREAS,
   WORK_ORDER_PRIORITIES,
   WORK_ORDER_STATUSES,
@@ -57,8 +45,6 @@ import {
 const USERS_STORAGE_KEY = STORAGE_KEYS.users || 'rubik.erp.users'
 
 const hasValue = (value) => String(value || '').trim().length > 0
-
-const normalizeEmail = (email = '') => String(email || '').trim().toLowerCase()
 
 const normalizeUser = (user = {}) => ({
   id: user.id || user.email || user.name || '',
@@ -126,31 +112,10 @@ const formatDate = (date) => {
   return new Intl.DateTimeFormat('es-CL').format(parsedDate)
 }
 
-const formatDateTime = (date) => {
-  if (!date) return '-'
-
-  const parsedDate = new Date(date)
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return date
-  }
-
-  return new Intl.DateTimeFormat('es-CL', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(parsedDate)
-}
-
 const getStatusColor = (status) => {
   if (status === 'Finalizada' || status === 'Aprobada') return 'success'
-  if (status === 'En proceso' || status === 'En revisión' || status === 'Recibida') return 'info'
-  if (
-    status === 'Pausada' ||
-    status === 'Borrador' ||
-    status === 'Solicita antecedentes' ||
-    status === 'Devuelta con observaciones'
-  )
-    return 'warning'
+  if (status === 'En proceso' || status === 'En revisión') return 'info'
+  if (status === 'Pausada' || status === 'Borrador') return 'warning'
   if (status === 'Rechazada') return 'danger'
   return 'secondary'
 }
@@ -160,6 +125,18 @@ const getPriorityColor = (priority) => {
   if (priority === 'Alta') return 'warning'
   if (priority === 'Media') return 'info'
   return 'secondary'
+}
+
+const getProgressByStatus = (status) => {
+  if (status === 'Borrador') return 10
+  if (status === 'Pendiente') return 20
+  if (status === 'En proceso') return 55
+  if (status === 'En revisión') return 75
+  if (status === 'Aprobada') return 90
+  if (status === 'Finalizada') return 100
+  if (status === 'Pausada') return 35
+  if (status === 'Rechazada') return 0
+  return 0
 }
 
 const getCompletionPercent = (order) => {
@@ -229,8 +206,6 @@ const matchesFilters = (order, filters) => {
       order.requirements,
       order.deliverables,
       order.observations,
-      ...(order.comments || []).map((comment) => comment.message),
-      ...(order.workflowLog || []).map((movement) => movement.message),
     ].some((value) =>
       String(value || '')
         .toLowerCase()
@@ -245,25 +220,13 @@ const matchesFilters = (order, filters) => {
   return matchesSearch && matchesStatus && matchesPriority && matchesArea
 }
 
-const getActor = (currentUser = {}) => ({
-  id: currentUser.id,
-  name: currentUser.name,
-  email: currentUser.email,
-  role: currentUser.role || currentUser.position,
-  area: currentUser.area,
-})
-
-const isRequester = (order, user) => normalizeEmail(order.requesterEmail) === normalizeEmail(user?.email)
-
-const isAssignee = (order, user) => normalizeEmail(order.assigneeEmail) === normalizeEmail(user?.email)
-
 const OrdenesTrabajo = () => {
   const { currentUser, hasPermission } = useAuth()
-  const canCreateWorkOrders = canUserCreateWorkOrder(currentUser || {}, hasPermission)
-  const canAssignWorkOrders = hasPermission('workorders.assign') || hasPermission('admin.all')
-  const canCloseWorkOrders = hasPermission('workorders.close') || hasPermission('admin.all')
-  const canViewAllWorkOrders = canAssignWorkOrders || canCloseWorkOrders || hasPermission('admin.all')
-
+  const canCreateWorkOrders = hasPermission('workorders.create')
+  const canAssignWorkOrders = hasPermission('workorders.assign')
+  const canCloseWorkOrders = hasPermission('workorders.close')
+  const canManageWorkOrders =
+    canCreateWorkOrders || canAssignWorkOrders || canCloseWorkOrders || hasPermission('admin.all')
   const [workOrders, setWorkOrders] = useLocalStorageState(
     WORK_ORDER_STORAGE_KEY,
     mockWorkOrders.map(normalizeWorkOrder),
@@ -281,24 +244,20 @@ const OrdenesTrabajo = () => {
   const [formData, setFormData] = useState(emptyWorkOrder)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-  const [workflowComment, setWorkflowComment] = useState('')
-  const [workflowProgress, setWorkflowProgress] = useState(0)
 
-  const normalizedOrders = useMemo(
-    () => (Array.isArray(workOrders) ? workOrders : []).map(normalizeWorkOrder),
-    [workOrders],
-  )
+  const normalizedOrders = useMemo(() => workOrders.map(normalizeWorkOrder), [workOrders])
   const normalizedUsers = useMemo(() => getMergedUserOptions(users), [users])
-
   const visibleOrders = useMemo(() => {
-    if (canViewAllWorkOrders) {
+    if (canManageWorkOrders) {
       return normalizedOrders
     }
 
-    return normalizedOrders.filter((order) =>
-      canUserViewWorkOrder(order, currentUser || {}, hasPermission),
+    const currentEmail = String(currentUser?.email || '').toLowerCase()
+
+    return normalizedOrders.filter(
+      (order) => String(order.assigneeEmail || '').toLowerCase() === currentEmail,
     )
-  }, [canViewAllWorkOrders, currentUser, hasPermission, normalizedOrders])
+  }, [canManageWorkOrders, currentUser?.email, normalizedOrders])
 
   const filteredOrders = useMemo(
     () => visibleOrders.filter((order) => matchesFilters(order, filters)),
@@ -311,23 +270,13 @@ const OrdenesTrabajo = () => {
       ['Borrador', 'Pendiente'].includes(order.status),
     ).length
     const inProgress = visibleOrders.filter((order) =>
-      ['Recibida', 'En proceso', 'Solicita antecedentes', 'Devuelta con observaciones'].includes(
-        order.status,
-      ),
+      ['En proceso', 'En revisión'].includes(order.status),
     ).length
-    const inReview = visibleOrders.filter((order) => order.status === 'En revisión').length
     const finished = visibleOrders.filter((order) =>
       ['Aprobada', 'Finalizada'].includes(order.status),
     ).length
     const urgent = visibleOrders.filter((order) => order.priority === 'Urgente').length
     const overdue = visibleOrders.filter(isOverdue).length
-    const averageProgress =
-      total > 0
-        ? Math.round(
-            visibleOrders.reduce((sum, order) => sum + calculateWorkOrderProgress(order), 0) /
-              total,
-          )
-        : 0
     const completion =
       total > 0
         ? Math.round(
@@ -339,11 +288,9 @@ const OrdenesTrabajo = () => {
       total,
       pending,
       inProgress,
-      inReview,
       finished,
       urgent,
       overdue,
-      averageProgress,
       completion,
       filtered: filteredOrders.length,
     }
@@ -369,18 +316,6 @@ const OrdenesTrabajo = () => {
     [visibleOrders],
   )
 
-  const syncSelectedOrder = (nextOrder) => {
-    const normalized = normalizeWorkOrder(nextOrder)
-
-    setWorkOrders((currentOrders) =>
-      (Array.isArray(currentOrders) ? currentOrders : []).map((order) =>
-        normalizeWorkOrder(order).id === normalized.id ? normalized : order,
-      ),
-    )
-    setSelectedOrder(normalized)
-    setWorkflowProgress(calculateWorkOrderProgress(normalized))
-  }
-
   const handleFilterChange = (event) => {
     const { name, value } = event.target
     setFilters((current) => ({ ...current, [name]: value }))
@@ -392,8 +327,8 @@ const OrdenesTrabajo = () => {
   }
 
   const handleUserSelect = (kind, event) => {
-    if (kind === 'assignee' && editingId && !canAssignWorkOrders) {
-      setError('Tu perfil no permite reasignar órdenes de trabajo.')
+    if (kind === 'assignee' && !canAssignWorkOrders) {
+      setError('Tu perfil no permite asignar órdenes de trabajo.')
       return
     }
 
@@ -454,8 +389,8 @@ const OrdenesTrabajo = () => {
   }
 
   const openEditModal = (order) => {
-    if (!canUserUpdateWorkOrder(order, currentUser || {}, hasPermission)) {
-      setMessage('Tu perfil solo permite visualizar esta orden.')
+    if (!canAssignWorkOrders && !canCloseWorkOrders) {
+      setMessage('Tu perfil solo permite ver órdenes asignadas.')
       return
     }
 
@@ -470,13 +405,6 @@ const OrdenesTrabajo = () => {
     setEditingId(null)
     setFormData(emptyWorkOrder)
     setError('')
-  }
-
-  const openDetailModal = (order) => {
-    const normalized = normalizeWorkOrder(order)
-    setSelectedOrder(normalized)
-    setWorkflowComment('')
-    setWorkflowProgress(calculateWorkOrderProgress(normalized))
   }
 
   const validateOrder = () => {
@@ -499,8 +427,8 @@ const OrdenesTrabajo = () => {
       return
     }
 
-    if (editingId && !canUserUpdateWorkOrder(formData, currentUser || {}, hasPermission)) {
-      setError('Tu perfil no permite editar esta orden de trabajo.')
+    if (editingId && !canAssignWorkOrders && !canCloseWorkOrders) {
+      setError('Tu perfil no permite editar órdenes de trabajo.')
       return
     }
 
@@ -525,12 +453,10 @@ const OrdenesTrabajo = () => {
 
     setWorkOrders((currentOrders) => {
       if (editingId) {
-        return (Array.isArray(currentOrders) ? currentOrders : []).map((order) =>
-          normalizeWorkOrder(order).id === editingId ? payload : order,
-        )
+        return currentOrders.map((order) => (order.id === editingId ? payload : order))
       }
 
-      return [payload, ...(Array.isArray(currentOrders) ? currentOrders : [])]
+      return [payload, ...currentOrders]
     })
 
     setMessage(editingId ? 'Orden de trabajo actualizada.' : 'Orden de trabajo creada.')
@@ -543,11 +469,7 @@ const OrdenesTrabajo = () => {
       return
     }
 
-    setWorkOrders((currentOrders) =>
-      (Array.isArray(currentOrders) ? currentOrders : []).filter(
-        (order) => normalizeWorkOrder(order).id !== orderId,
-      ),
-    )
+    setWorkOrders((currentOrders) => currentOrders.filter((order) => order.id !== orderId))
     setMessage('Orden de trabajo eliminada localmente.')
   }
 
@@ -562,72 +484,12 @@ const OrdenesTrabajo = () => {
       id: undefined,
       title: `${order.title} - copia`,
       status: 'Pendiente',
-      progressManual: 20,
-      comments: [],
-      workflowLog: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
 
-    setWorkOrders((currentOrders) => [duplicatedOrder, ...(Array.isArray(currentOrders) ? currentOrders : [])])
+    setWorkOrders((currentOrders) => [duplicatedOrder, ...currentOrders])
     setMessage('Orden de trabajo duplicada.')
-  }
-
-  const handleWorkflowAction = (action) => {
-    if (!selectedOrder) return
-
-    const updatedOrder = updateWorkOrderStatus(selectedOrder, {
-      action,
-      actor: getActor(currentUser),
-      message: workflowComment,
-      progressManual: workflowProgress,
-    })
-
-    syncSelectedOrder(updatedOrder)
-    setWorkflowComment('')
-    setMessage('Movimiento registrado en la orden de trabajo.')
-  }
-
-  const handleAddComment = () => {
-    if (!selectedOrder) return
-
-    const updatedOrder = addWorkOrderComment(selectedOrder, {
-      actor: getActor(currentUser),
-      message: workflowComment,
-      type: 'Comentario',
-    })
-
-    syncSelectedOrder(updatedOrder)
-    setWorkflowComment('')
-    setMessage('Comentario agregado a la orden de trabajo.')
-  }
-
-  const handleProgressUpdate = () => {
-    if (!selectedOrder) return
-
-    const updatedOrder = updateWorkOrderProgress(selectedOrder, {
-      actor: getActor(currentUser),
-      progressManual: workflowProgress,
-      message: workflowComment,
-    })
-
-    syncSelectedOrder(updatedOrder)
-    setWorkflowComment('')
-    setMessage('Avance actualizado.')
-  }
-
-  const handleToggleDeliverable = (item, done, index) => {
-    if (!selectedOrder) return
-
-    const updatedOrder = toggleWorkOrderDeliverable(selectedOrder, {
-      deliverableId: item.id,
-      index,
-      done,
-      actor: getActor(currentUser),
-    })
-
-    syncSelectedOrder(updatedOrder)
-    setMessage(done ? 'Entregable marcado como completado.' : 'Entregable reabierto.')
   }
 
   const handleExportWorkOrdersList = async () => {
@@ -654,21 +516,15 @@ const OrdenesTrabajo = () => {
           { header: 'Estado', key: 'status', width: 18 },
           { header: 'Fecha entrega', key: 'dueDate', width: 16 },
           {
-            header: 'Avance operativo',
+            header: 'Avance',
             key: 'progress',
-            width: 18,
-            value: (order) => `${calculateWorkOrderProgress(order)}%`,
+            width: 14,
+            value: (order) => `${getProgressByStatus(order.status)}%`,
           },
           {
-            header: 'Checklist entregables',
-            key: 'checklistProgress',
-            width: 20,
-            value: (order) => `${calculateChecklistProgress(order)}%`,
-          },
-          {
-            header: 'Completitud ficha',
+            header: 'Completitud',
             key: 'completion',
-            width: 18,
+            width: 16,
             value: (order) => `${getCompletionPercent(order)}%`,
           },
           { header: 'Descripción', key: 'description', width: 42 },
@@ -679,10 +535,9 @@ const OrdenesTrabajo = () => {
         rows: filteredOrders,
         summary: [
           { label: 'Órdenes exportadas', value: filteredOrders.length },
-          { label: 'Total órdenes visibles', value: orderSummary.total },
+          { label: 'Total órdenes guardadas', value: orderSummary.total },
           { label: 'Pendientes', value: orderSummary.pending },
-          { label: 'En proceso', value: orderSummary.inProgress },
-          { label: 'En revisión', value: orderSummary.inReview },
+          { label: 'En proceso / revisión', value: orderSummary.inProgress },
           { label: 'Finalizadas / aprobadas', value: orderSummary.finished },
           { label: 'Urgentes', value: orderSummary.urgent },
           { label: 'Vencidas', value: orderSummary.overdue },
@@ -696,18 +551,12 @@ const OrdenesTrabajo = () => {
     }
   }
 
-  const selectedOrderCanUpdate =
-    selectedOrder && canUserUpdateWorkOrder(selectedOrder, currentUser || {}, hasPermission)
-  const selectedOrderActions = selectedOrder
-    ? getAvailableWorkOrderActions(selectedOrder, currentUser || {}, hasPermission)
-    : []
-
   return (
     <CRow className="g-4">
       <CCol xl={2} md={4} sm={6}>
         <CCard className="h-100">
           <CCardBody>
-            <div className="text-body-secondary small">Órdenes visibles</div>
+            <div className="text-body-secondary small">Órdenes registradas</div>
             <div className="fs-3 fw-semibold">{orderSummary.total}</div>
             <CProgress thin color="primary" value={orderSummary.total > 0 ? 100 : 0} />
           </CCardBody>
@@ -719,7 +568,7 @@ const OrdenesTrabajo = () => {
           <CCardBody>
             <div className="text-body-secondary small">Pendientes</div>
             <div className="fs-3 fw-semibold">{orderSummary.pending}</div>
-            <div className="small text-body-secondary">borrador o por recibir</div>
+            <div className="small text-body-secondary">borrador o por iniciar</div>
             <CProgress
               thin
               color="warning"
@@ -736,9 +585,9 @@ const OrdenesTrabajo = () => {
       <CCol xl={2} md={4} sm={6}>
         <CCard className="h-100">
           <CCardBody>
-            <div className="text-body-secondary small">En gestión</div>
+            <div className="text-body-secondary small">En proceso / revisión</div>
             <div className="fs-3 fw-semibold">{orderSummary.inProgress}</div>
-            <div className="small text-body-secondary">recibidas, proceso u observación</div>
+            <div className="small text-body-secondary">trabajo activo entre áreas</div>
             <CProgress
               thin
               color="info"
@@ -755,15 +604,15 @@ const OrdenesTrabajo = () => {
       <CCol xl={2} md={4} sm={6}>
         <CCard className="h-100">
           <CCardBody>
-            <div className="text-body-secondary small">En revisión</div>
-            <div className="fs-3 fw-semibold">{orderSummary.inReview}</div>
-            <div className="small text-body-secondary">esperan aprobación o cambios</div>
+            <div className="text-body-secondary small">Urgentes</div>
+            <div className="fs-3 fw-semibold">{orderSummary.urgent}</div>
+            <div className="small text-body-secondary">prioridad crítica</div>
             <CProgress
               thin
-              color="primary"
+              color="danger"
               value={
                 orderSummary.total > 0
-                  ? Math.round((orderSummary.inReview / orderSummary.total) * 100)
+                  ? Math.round((orderSummary.urgent / orderSummary.total) * 100)
                   : 0
               }
             />
@@ -774,19 +623,15 @@ const OrdenesTrabajo = () => {
       <CCol xl={2} md={4} sm={6}>
         <CCard className="h-100">
           <CCardBody>
-            <div className="text-body-secondary small">Urgentes / vencidas</div>
-            <div className="fs-3 fw-semibold">
-              {orderSummary.urgent} / {orderSummary.overdue}
-            </div>
-            <div className="small text-body-secondary">prioridad y fecha límite</div>
+            <div className="text-body-secondary small">Vencidas</div>
+            <div className="fs-3 fw-semibold">{orderSummary.overdue}</div>
+            <div className="small text-body-secondary">fuera de fecha</div>
             <CProgress
               thin
-              color={orderSummary.overdue > 0 ? 'danger' : 'warning'}
+              color={orderSummary.overdue > 0 ? 'danger' : 'success'}
               value={
                 orderSummary.total > 0
-                  ? Math.round(
-                      ((orderSummary.urgent + orderSummary.overdue) / orderSummary.total) * 100,
-                    )
+                  ? Math.round((orderSummary.overdue / orderSummary.total) * 100)
                   : 0
               }
             />
@@ -797,13 +642,13 @@ const OrdenesTrabajo = () => {
       <CCol xl={2} md={4} sm={6}>
         <CCard className="h-100">
           <CCardBody>
-            <div className="text-body-secondary small">Avance promedio</div>
-            <div className="fs-3 fw-semibold">{orderSummary.averageProgress}%</div>
-            <div className="small text-body-secondary">estado + avance + entregables</div>
+            <div className="text-body-secondary small">Completitud promedio</div>
+            <div className="fs-3 fw-semibold">{orderSummary.completion}%</div>
+            <div className="small text-body-secondary">calidad de la solicitud</div>
             <CProgress
               thin
-              color={getWorkOrderProgressColor(orderSummary.averageProgress)}
-              value={orderSummary.averageProgress}
+              color={getCompletionColor(orderSummary.completion)}
+              value={orderSummary.completion}
             />
           </CCardBody>
         </CCard>
@@ -814,7 +659,7 @@ const OrdenesTrabajo = () => {
           <CCardHeader className="d-flex align-items-center justify-content-between gap-3 flex-wrap">
             <div>
               <strong>Órdenes de trabajo internas</strong>{' '}
-              <small>Flujo operativo entre solicitante y responsable</small>
+              <small>Flujo entre ventas, diseño, producción, administración y gerencia</small>
             </div>
 
             <div className="d-flex align-items-center gap-2 flex-wrap">
@@ -843,10 +688,9 @@ const OrdenesTrabajo = () => {
               </CAlert>
             )}
 
-            {!canViewAllWorkOrders && (
+            {!canManageWorkOrders && (
               <CAlert color="info">
-                Tu perfil muestra órdenes donde participas como solicitante o responsable. Puedes
-                gestionar fases, comentarios y entregables cuando la orden esté asignada a ti.
+                Tu perfil muestra solo órdenes asignadas a {currentUser?.email || 'tu usuario'}.
               </CAlert>
             )}
 
@@ -856,7 +700,7 @@ const OrdenesTrabajo = () => {
                 <CFormInput
                   id="workOrderSearch"
                   name="search"
-                  placeholder="Buscar por cliente, orden, área, responsable, estado o comentario..."
+                  placeholder="Buscar por cliente, orden, área, responsable, estado..."
                   value={filters.search}
                   onChange={handleFilterChange}
                 />
@@ -960,12 +804,9 @@ const OrdenesTrabajo = () => {
 
                 <CTableBody>
                   {filteredOrders.map((order) => {
-                    const progress = calculateWorkOrderProgress(order)
+                    const progress = getProgressByStatus(order.status)
                     const completion = getCompletionPercent(order)
-                    const checklistProgress = calculateChecklistProgress(order)
                     const overdue = isOverdue(order)
-                    const userIsAssignee = isAssignee(order, currentUser)
-                    const userIsRequester = isRequester(order, currentUser)
 
                     return (
                       <CTableRow key={order.id}>
@@ -974,10 +815,6 @@ const OrdenesTrabajo = () => {
                           <div className="text-body-secondary small">
                             {order.type}
                             {order.quoteNumber ? ` · Cot. ${order.quoteNumber}` : ''}
-                          </div>
-                          <div className="d-flex align-items-center gap-1 flex-wrap mt-1">
-                            {userIsAssignee && <CBadge color="info">Asignada a mí</CBadge>}
-                            {userIsRequester && <CBadge color="primary">Solicitada por mí</CBadge>}
                           </div>
                         </CTableDataCell>
                         <CTableDataCell style={{ minWidth: '220px' }}>
@@ -1009,21 +846,12 @@ const OrdenesTrabajo = () => {
                           <div>{formatDate(order.dueDate)}</div>
                           {overdue && <CBadge color="danger">Vencida</CBadge>}
                         </CTableDataCell>
-                        <CTableDataCell style={{ minWidth: '170px' }}>
+                        <CTableDataCell style={{ minWidth: '160px' }}>
                           <div className="d-flex justify-content-between small mb-1">
-                            <span>Operativo</span>
+                            <span>Avance</span>
                             <strong>{progress}%</strong>
                           </div>
-                          <CProgress color={getWorkOrderProgressColor(progress)} value={progress} />
-                          <div className="d-flex justify-content-between small mt-2 mb-1">
-                            <span>Entregables</span>
-                            <strong>{checklistProgress}%</strong>
-                          </div>
-                          <CProgress
-                            thin
-                            color={getWorkOrderProgressColor(checklistProgress)}
-                            value={checklistProgress}
-                          />
+                          <CProgress color={getStatusColor(order.status)} value={progress} />
                           <div className="d-flex justify-content-between small mt-2 mb-1">
                             <span>Ficha</span>
                             <strong>{completion}%</strong>
@@ -1040,18 +868,18 @@ const OrdenesTrabajo = () => {
                               color="primary"
                               variant="outline"
                               type="button"
-                              onClick={() => openDetailModal(order)}
+                              onClick={() => setSelectedOrder(order)}
                             >
-                              Gestionar
+                              Ver
                             </CButton>
-                            {canUserUpdateWorkOrder(order, currentUser || {}, hasPermission) && (
+                            {(canAssignWorkOrders || canCloseWorkOrders) && (
                               <CButton
                                 color="secondary"
                                 variant="outline"
                                 type="button"
                                 onClick={() => openEditModal(order)}
                               >
-                                Editar ficha
+                                Editar
                               </CButton>
                             )}
                             {canCreateWorkOrders && (
@@ -1086,319 +914,91 @@ const OrdenesTrabajo = () => {
         </CCard>
       </CCol>
 
-      <CModal visible={Boolean(selectedOrder)} onClose={() => setSelectedOrder(null)} size="xl">
+      <CModal visible={Boolean(selectedOrder)} onClose={() => setSelectedOrder(null)} size="lg">
         <CModalHeader>
-          <CModalTitle>Gestionar orden de trabajo</CModalTitle>
+          <CModalTitle>Orden de trabajo</CModalTitle>
         </CModalHeader>
         <CModalBody>
           {selectedOrder && (
             <>
-              <CRow className="g-4 mb-4">
-                <CCol lg={8}>
-                  <CCard className="h-100">
-                    <CCardHeader className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-                      <div>
-                        <strong>{selectedOrder.title}</strong>
-                        <div className="small text-body-secondary">
-                          {selectedOrder.type}
-                          {selectedOrder.quoteNumber ? ` · Cot. ${selectedOrder.quoteNumber}` : ''}
-                        </div>
-                      </div>
-                      <div className="d-flex gap-2 flex-wrap">
-                        <CBadge color={getStatusColor(selectedOrder.status)}>
-                          {selectedOrder.status}
-                        </CBadge>
-                        <CBadge color={getPriorityColor(selectedOrder.priority)}>
-                          {selectedOrder.priority}
-                        </CBadge>
-                      </div>
-                    </CCardHeader>
-                    <CCardBody>
-                      <CRow className="g-3">
-                        <CCol md={4}>
-                          <div className="text-body-secondary small">Cliente / empresa</div>
-                          <div>
-                            {selectedOrder.client || '-'} · {selectedOrder.company || '-'}
-                          </div>
-                        </CCol>
-                        <CCol md={4}>
-                          <div className="text-body-secondary small">Flujo de área</div>
-                          <div>
-                            {selectedOrder.sourceArea} → {selectedOrder.targetArea}
-                          </div>
-                        </CCol>
-                        <CCol md={4}>
-                          <div className="text-body-secondary small">Entrega</div>
-                          <div>{formatDate(selectedOrder.dueDate)}</div>
-                          {isOverdue(selectedOrder) && <CBadge color="danger">Vencida</CBadge>}
-                        </CCol>
-                        <CCol md={6}>
-                          <div className="text-body-secondary small">Solicita</div>
-                          <div>{selectedOrder.requesterName}</div>
-                          <div className="text-body-secondary small">
-                            {selectedOrder.requesterRole}
-                            {selectedOrder.requesterEmail
-                              ? ` · ${selectedOrder.requesterEmail}`
-                              : ''}
-                          </div>
-                        </CCol>
-                        <CCol md={6}>
-                          <div className="text-body-secondary small">Responsable</div>
-                          <div>{selectedOrder.assigneeName}</div>
-                          <div className="text-body-secondary small">
-                            {selectedOrder.assigneeRole}
-                            {selectedOrder.assigneeEmail ? ` · ${selectedOrder.assigneeEmail}` : ''}
-                          </div>
-                        </CCol>
-                        <CCol xs={12}>
-                          <div className="text-body-secondary small">Descripción</div>
-                          <div>{selectedOrder.description || '-'}</div>
-                        </CCol>
-                        <CCol md={6}>
-                          <div className="text-body-secondary small">Requerimientos / insumos</div>
-                          <div style={{ whiteSpace: 'pre-wrap' }}>{selectedOrder.requirements || '-'}</div>
-                        </CCol>
-                        <CCol md={6}>
-                          <div className="text-body-secondary small">Entregables esperados</div>
-                          <div style={{ whiteSpace: 'pre-wrap' }}>{selectedOrder.deliverables || '-'}</div>
-                        </CCol>
-                      </CRow>
-                    </CCardBody>
-                  </CCard>
+              <CRow className="g-3 mb-3">
+                <CCol md={8}>
+                  <div className="text-body-secondary small">Título</div>
+                  <div className="fw-semibold">{selectedOrder.title}</div>
                 </CCol>
-
-                <CCol lg={4}>
-                  <CCard className="h-100">
-                    <CCardHeader>
-                      <strong>Avance operativo</strong>
-                    </CCardHeader>
-                    <CCardBody>
-                      <div className="d-flex justify-content-between small mb-1">
-                        <span>Avance total</span>
-                        <strong>{calculateWorkOrderProgress(selectedOrder)}%</strong>
-                      </div>
-                      <CProgress
-                        color={getWorkOrderProgressColor(calculateWorkOrderProgress(selectedOrder))}
-                        value={calculateWorkOrderProgress(selectedOrder)}
-                        className="mb-3"
-                      />
-
-                      <div className="d-flex justify-content-between small mb-1">
-                        <span>Checklist entregables</span>
-                        <strong>{calculateChecklistProgress(selectedOrder)}%</strong>
-                      </div>
-                      <CProgress
-                        color={getWorkOrderProgressColor(calculateChecklistProgress(selectedOrder))}
-                        value={calculateChecklistProgress(selectedOrder)}
-                        className="mb-3"
-                      />
-
-                      <CFormLabel htmlFor="workflowProgress">Avance manual</CFormLabel>
-                      <CFormInput
-                        id="workflowProgress"
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={workflowProgress}
-                        disabled={!selectedOrderCanUpdate}
-                        onChange={(event) => setWorkflowProgress(Number(event.target.value))}
-                      />
-
-                      <CFormLabel htmlFor="workflowComment" className="mt-3">
-                        Comentario / observación
-                      </CFormLabel>
-                      <CFormTextarea
-                        id="workflowComment"
-                        rows={4}
-                        value={workflowComment}
-                        disabled={!selectedOrderCanUpdate}
-                        onChange={(event) => setWorkflowComment(event.target.value)}
-                        placeholder="Describe avance, dudas, antecedentes requeridos, entrega o motivo del cambio."
-                      />
-
-                      <div className="d-flex flex-column gap-2 mt-3">
-                        <CButton
-                          color="secondary"
-                          variant="outline"
-                          type="button"
-                          disabled={!selectedOrderCanUpdate || !workflowComment.trim()}
-                          onClick={handleAddComment}
-                        >
-                          Agregar comentario
-                        </CButton>
-                        <CButton
-                          color="info"
-                          variant="outline"
-                          type="button"
-                          disabled={!selectedOrderCanUpdate}
-                          onClick={handleProgressUpdate}
-                        >
-                          Actualizar avance
-                        </CButton>
-                      </div>
-                    </CCardBody>
-                  </CCard>
+                <CCol md={4}>
+                  <div className="text-body-secondary small">Estado</div>
+                  <CBadge color={getStatusColor(selectedOrder.status)}>
+                    {selectedOrder.status}
+                  </CBadge>
+                </CCol>
+                <CCol md={4}>
+                  <div className="text-body-secondary small">Tipo</div>
+                  <div>{selectedOrder.type}</div>
+                </CCol>
+                <CCol md={4}>
+                  <div className="text-body-secondary small">Prioridad</div>
+                  <CBadge color={getPriorityColor(selectedOrder.priority)}>
+                    {selectedOrder.priority}
+                  </CBadge>
+                </CCol>
+                <CCol md={4}>
+                  <div className="text-body-secondary small">Entrega</div>
+                  <div>{formatDate(selectedOrder.dueDate)}</div>
+                </CCol>
+                <CCol md={6}>
+                  <div className="text-body-secondary small">Cliente / empresa</div>
+                  <div>
+                    {selectedOrder.client || '-'} · {selectedOrder.company || '-'}
+                  </div>
+                </CCol>
+                <CCol md={6}>
+                  <div className="text-body-secondary small">Flujo de área</div>
+                  <div>
+                    {selectedOrder.sourceArea} → {selectedOrder.targetArea}
+                  </div>
+                </CCol>
+                <CCol md={6}>
+                  <div className="text-body-secondary small">Solicita</div>
+                  <div>{selectedOrder.requesterName}</div>
+                  <div className="text-body-secondary small">
+                    {selectedOrder.requesterRole}
+                    {selectedOrder.requesterEmail ? ` · ${selectedOrder.requesterEmail}` : ''}
+                  </div>
+                </CCol>
+                <CCol md={6}>
+                  <div className="text-body-secondary small">Asignado a</div>
+                  <div>{selectedOrder.assigneeName}</div>
+                  <div className="text-body-secondary small">
+                    {selectedOrder.assigneeRole}
+                    {selectedOrder.assigneeEmail ? ` · ${selectedOrder.assigneeEmail}` : ''}
+                  </div>
                 </CCol>
               </CRow>
 
-              <CCard className="mb-4">
-                <CCardHeader>
-                  <strong>Acciones de flujo</strong>{' '}
-                  <small>según responsable, solicitante y permisos del usuario</small>
-                </CCardHeader>
-                <CCardBody>
-                  {selectedOrderActions.length === 0 ? (
-                    <CAlert color="info" className="mb-0">
-                      No tienes acciones disponibles para esta etapa. Puedes revisar el detalle e
-                      historial.
-                    </CAlert>
-                  ) : (
-                    <div className="d-flex align-items-center gap-2 flex-wrap">
-                      {selectedOrderActions.map((item) => (
-                        <CButton
-                          color={item.color}
-                          variant="outline"
-                          type="button"
-                          key={item.action}
-                          onClick={() => handleWorkflowAction(item.action)}
-                        >
-                          {item.label}
-                        </CButton>
-                      ))}
-                    </div>
-                  )}
-                </CCardBody>
-              </CCard>
+              <div className="mb-3">
+                <div className="text-body-secondary small">Descripción</div>
+                <div>{selectedOrder.description || '-'}</div>
+              </div>
 
-              <CRow className="g-4">
-                <CCol lg={6}>
-                  <CCard className="h-100">
-                    <CCardHeader>
-                      <strong>Checklist de entregables</strong>
-                    </CCardHeader>
-                    <CCardBody>
-                      {selectedOrder.deliverableChecklist.length === 0 ? (
-                        <CAlert color="info" className="mb-0">
-                          Esta orden no tiene entregables separados. Puedes definirlos en la ficha
-                          usando una línea por entregable.
-                        </CAlert>
-                      ) : (
-                        <div className="d-flex flex-column gap-2">
-                          {selectedOrder.deliverableChecklist.map((item, index) => (
-                            <div
-                              key={item.id || `${item.label}-${index}`}
-                              className="border rounded p-2"
-                            >
-                              <CFormCheck
-                                id={`deliverable-${item.id || index}`}
-                                label={item.label}
-                                checked={Boolean(item.done)}
-                                disabled={!selectedOrderCanUpdate}
-                                onChange={(event) =>
-                                  handleToggleDeliverable(item, event.target.checked, index)
-                                }
-                              />
-                              {item.doneAt && (
-                                <div className="small text-body-secondary ms-4">
-                                  Completado: {formatDateTime(item.doneAt)}
-                                  {item.doneBy?.name ? ` · ${item.doneBy.name}` : ''}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CCardBody>
-                  </CCard>
-                </CCol>
+              <div className="mb-3">
+                <div className="text-body-secondary small">Requerimientos</div>
+                <div>{selectedOrder.requirements || '-'}</div>
+              </div>
 
-                <CCol lg={6}>
-                  <CCard className="h-100">
-                    <CCardHeader>
-                      <strong>Comentarios internos</strong>
-                    </CCardHeader>
-                    <CCardBody>
-                      {selectedOrder.comments.length === 0 ? (
-                        <CAlert color="info" className="mb-0">
-                          Sin comentarios registrados.
-                        </CAlert>
-                      ) : (
-                        <div className="d-flex flex-column gap-3">
-                          {selectedOrder.comments.map((comment) => (
-                            <div className="border rounded p-3" key={comment.id}>
-                              <div className="d-flex justify-content-between gap-2 flex-wrap">
-                                <strong>{comment.actor?.name || 'Usuario'}</strong>
-                                <span className="small text-body-secondary">
-                                  {formatDateTime(comment.createdAt)}
-                                </span>
-                              </div>
-                              <CBadge color="light" textColor="dark" className="my-2">
-                                {comment.type}
-                              </CBadge>
-                              <div style={{ whiteSpace: 'pre-wrap' }}>{comment.message}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CCardBody>
-                  </CCard>
-                </CCol>
+              <div className="mb-3">
+                <div className="text-body-secondary small">Entregables</div>
+                <div>{selectedOrder.deliverables || '-'}</div>
+              </div>
 
-                <CCol xs={12}>
-                  <CCard>
-                    <CCardHeader>
-                      <strong>Historial de movimientos</strong>
-                    </CCardHeader>
-                    <CCardBody>
-                      <CTable responsive hover small align="middle">
-                        <CTableHead>
-                          <CTableRow>
-                            <CTableHeaderCell>Fecha</CTableHeaderCell>
-                            <CTableHeaderCell>Acción</CTableHeaderCell>
-                            <CTableHeaderCell>Estado</CTableHeaderCell>
-                            <CTableHeaderCell>Avance</CTableHeaderCell>
-                            <CTableHeaderCell>Usuario</CTableHeaderCell>
-                            <CTableHeaderCell>Comentario</CTableHeaderCell>
-                          </CTableRow>
-                        </CTableHead>
-                        <CTableBody>
-                          {selectedOrder.workflowLog.map((movement) => (
-                            <CTableRow key={movement.id}>
-                              <CTableDataCell>{formatDateTime(movement.createdAt)}</CTableDataCell>
-                              <CTableDataCell>{movement.action}</CTableDataCell>
-                              <CTableDataCell>
-                                {movement.fromStatus ? `${movement.fromStatus} → ` : ''}
-                                <CBadge color={getStatusColor(movement.toStatus)}>
-                                  {movement.toStatus || selectedOrder.status}
-                                </CBadge>
-                              </CTableDataCell>
-                              <CTableDataCell>{movement.progress}%</CTableDataCell>
-                              <CTableDataCell>
-                                <div>{movement.actor?.name || '-'}</div>
-                                <div className="small text-body-secondary">
-                                  {movement.actor?.role || movement.actor?.email || ''}
-                                </div>
-                              </CTableDataCell>
-                              <CTableDataCell style={{ minWidth: '260px' }}>
-                                {movement.message || '-'}
-                              </CTableDataCell>
-                            </CTableRow>
-                          ))}
-                        </CTableBody>
-                      </CTable>
-                    </CCardBody>
-                  </CCard>
-                </CCol>
-              </CRow>
+              <div>
+                <div className="text-body-secondary small">Observaciones</div>
+                <div>{selectedOrder.observations || '-'}</div>
+              </div>
             </>
           )}
         </CModalBody>
         <CModalFooter>
-          {selectedOrder && canUserUpdateWorkOrder(selectedOrder, currentUser || {}, hasPermission) && (
-            <CButton color="secondary" variant="outline" type="button" onClick={() => openEditModal(selectedOrder)}>
-              Editar ficha completa
-            </CButton>
-          )}
           <CButton color="secondary" type="button" onClick={() => setSelectedOrder(null)}>
             Cerrar
           </CButton>
@@ -1475,7 +1075,6 @@ const OrdenesTrabajo = () => {
                   name="requesterEmail"
                   value={formData.requesterEmail}
                   onChange={(event) => handleUserSelect('requester', event)}
-                  disabled={editingId && !canAssignWorkOrders && !canCloseWorkOrders}
                 >
                   <option value="">Seleccionar usuario</option>
                   {normalizedUsers.map((user) => (
@@ -1499,7 +1098,7 @@ const OrdenesTrabajo = () => {
                   name="assigneeEmail"
                   value={formData.assigneeEmail}
                   onChange={(event) => handleUserSelect('assignee', event)}
-                  disabled={editingId && !canAssignWorkOrders}
+                  disabled={!canAssignWorkOrders}
                 >
                   <option value="">Seleccionar usuario</option>
                   {normalizedUsers.map((user) => (
@@ -1534,7 +1133,7 @@ const OrdenesTrabajo = () => {
                   name="sourceArea"
                   value={formData.sourceArea}
                   onChange={handleChange}
-                  disabled={editingId && !canAssignWorkOrders && !canCloseWorkOrders}
+                  disabled={!canCreateWorkOrders && !canAssignWorkOrders}
                 >
                   {WORK_ORDER_AREAS.map((area) => (
                     <option key={area} value={area}>
@@ -1551,7 +1150,7 @@ const OrdenesTrabajo = () => {
                   name="targetArea"
                   value={formData.targetArea}
                   onChange={handleChange}
-                  disabled={editingId && !canAssignWorkOrders}
+                  disabled={!canAssignWorkOrders}
                 >
                   {WORK_ORDER_AREAS.map((area) => (
                     <option key={area} value={area}>
@@ -1587,7 +1186,7 @@ const OrdenesTrabajo = () => {
                 >
                   {WORK_ORDER_STATUSES.filter(
                     (status) =>
-                      canCloseWorkOrders || !['Aprobada', 'Finalizada', 'Rechazada'].includes(status),
+                      canCloseWorkOrders || !['Aprobada', 'Finalizada'].includes(status),
                   ).map((status) => (
                     <option key={status} value={status}>
                       {status}
@@ -1628,7 +1227,7 @@ const OrdenesTrabajo = () => {
                   rows={4}
                   value={formData.deliverables}
                   onChange={handleChange}
-                  placeholder="Usa una línea por entregable para activar el checklist."
+                  placeholder="Mockup, arte final, presupuesto validado, archivo producción, aprobación, etc."
                 />
               </CCol>
 

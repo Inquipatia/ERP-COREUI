@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react'
 
 export const STORAGE_KEYS = {
-  currentUser: 'rubik.erp.currentUser',
-  users: 'rubik.erp.users',
   clients: 'rubik.erp.clients',
   materials: 'rubik.erp.materials',
   products: 'rubik.erp.products',
   quotes: 'rubik.erp.quotes',
   documents: 'rubik.erp.documents',
-  tenders: 'rubik.erp.tenders',
   commercialSettings: 'rubik.erp.commercialSettings',
+  aiChatHistories: 'rubik.erp.aiChatHistories',
 }
 
 const canUseLocalStorage = () => typeof window !== 'undefined' && Boolean(window.localStorage)

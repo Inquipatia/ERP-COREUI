@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   CAlert,
+  CBadge,
   CButton,
   CCard,
   CCardBody,
@@ -11,6 +12,7 @@ import {
   CForm,
   CFormInput,
   CFormLabel,
+  CFormSelect,
   CInputGroup,
   CInputGroupText,
   CRow,
@@ -18,25 +20,28 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilLockLocked, cilUser } from '@coreui/icons'
 import { useAuth } from '../../context/AuthContext'
+import { getAuthUsers, getDefaultRouteForUser } from '../../utils/authStorage'
 
 const Login = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { currentUser, login } = useAuth()
+  const users = useMemo(() => getAuthUsers().filter((user) => user.status !== 'Inactivo'), [])
   const [email, setEmail] = useState('rsepulveda@rubikcreaciones.cl')
   const [password, setPassword] = useState('123456')
   const [error, setError] = useState('')
 
-  const redirectTo = location.state?.from?.pathname || '/erp/dashboard'
+  const requestedPath = location.state?.from?.pathname
 
   useEffect(() => {
     if (currentUser) {
-      navigate(redirectTo, { replace: true })
+      navigate(requestedPath || getDefaultRouteForUser(currentUser), { replace: true })
     }
-  }, [currentUser, navigate, redirectTo])
+  }, [currentUser, navigate, requestedPath])
 
   const handleSubmit = (event) => {
     event.preventDefault()
+
     const result = login({ email, password })
 
     if (!result.ok) {
@@ -45,22 +50,38 @@ const Login = () => {
     }
 
     setError('')
-    navigate(redirectTo, { replace: true })
+    navigate(requestedPath || getDefaultRouteForUser(result.user), { replace: true })
   }
 
   return (
     <div className="bg-body-tertiary min-vh-100 d-flex flex-row align-items-center">
       <CContainer>
         <CRow className="justify-content-center">
-          <CCol md={8} lg={7}>
+          <CCol md={9} lg={8} xl={7}>
             <CCardGroup>
               <CCard className="p-4">
                 <CCardBody>
                   <CForm onSubmit={handleSubmit}>
                     <h1>ERP Rubik</h1>
-                    <p className="text-body-secondary mb-4">Ingreso interno desarrollo local</p>
+                    <p className="text-body-secondary mb-4">
+                      Acceso interno con roles, permisos y datos por perfil.
+                    </p>
 
                     {error && <CAlert color="danger">{error}</CAlert>}
+
+                    <CFormLabel htmlFor="loginUserSelect">Usuario de prueba</CFormLabel>
+                    <CFormSelect
+                      id="loginUserSelect"
+                      className="mb-3"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                    >
+                      {users.map((user) => (
+                        <option key={user.email} value={user.email}>
+                          {user.name} · {user.role}
+                        </option>
+                      ))}
+                    </CFormSelect>
 
                     <CFormLabel htmlFor="loginEmail">Email</CFormLabel>
                     <CInputGroup className="mb-3">
@@ -100,10 +121,17 @@ const Login = () => {
               <CCard className="text-white bg-primary py-5 d-none d-md-flex" style={{ width: '44%' }}>
                 <CCardBody className="text-center d-flex flex-column justify-content-center">
                   <h2>Rubik Creaciones</h2>
-                  <p className="mb-0">
-                    MVP local con usuarios, roles y permisos. La contraseña temporal de desarrollo
-                    es 123456.
+                  <p className="mb-3">
+                    MVP local con usuarios reales, permisos por rol y navegación protegida.
                   </p>
+                  <div className="d-flex justify-content-center gap-2 flex-wrap">
+                    <CBadge color="light" textColor="dark">
+                      Clave desarrollo: 123456
+                    </CBadge>
+                    <CBadge color="light" textColor="dark">
+                      Sesión localStorage
+                    </CBadge>
+                  </div>
                 </CCardBody>
               </CCard>
             </CCardGroup>

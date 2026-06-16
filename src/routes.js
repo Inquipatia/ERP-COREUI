@@ -19,6 +19,7 @@ import React from 'react'
 const Dashboard = React.lazy(() => import('./views/dashboard/Dashboard'))
 const NuevaCotizacion = React.lazy(() => import('./views/cotizador-5000/NuevaCotizacion'))
 const DashboardERP = React.lazy(() => import('./views/erp/DashboardERP'))
+const AsistenteIA = React.lazy(() => import('./views/erp/asistente/AsistenteIA'))
 const UsuariosERP = React.lazy(() => import('./views/erp/Usuarios'))
 const ClientesERP = React.lazy(() => import('./views/erp/Clientes'))
 const MaterialesERP = React.lazy(() => import('./views/erp/Materiales'))
@@ -102,6 +103,7 @@ export const routes = [
   { path: '/dashboard', name: 'Dashboard', element: Dashboard },
   { path: '/erp', exact: true, name: 'ERP Rubik', element: DashboardERP },
   { path: '/erp/dashboard', name: 'Dashboard ERP', element: DashboardERP },
+  { path: '/erp/asistente', name: 'Asistente IA', element: AsistenteIA },
   { path: '/erp/usuarios', name: 'Usuarios', element: UsuariosERP },
   { path: '/erp/clientes', name: 'Clientes', element: ClientesERP },
   { path: '/erp/materiales', name: 'Materiales', element: MaterialesERP },
@@ -114,11 +116,11 @@ export const routes = [
   { path: '/erp/documentos', name: 'Documentos', element: DocumentosERP },
   { path: '/erp/licitaciones', name: 'Licitaciones', element: Licitaciones },
   { path: '/erp/ordenes-trabajo', name: 'Órdenes de trabajo', element: OrdenesTrabajo },
-  { path: '/erp/configuracion', name: 'Configuración Rubik', element: ConfiguracionRubikERP },
+  { path: '/erp/configuracion', name: 'Configuraci�n Rubik', element: ConfiguracionRubikERP },
   { path: '/cotizador-5000', exact: true, name: 'Cotizador 5000' },
   {
     path: '/cotizador-5000/nueva-cotizacion',
-    name: 'Nueva cotización',
+    name: 'Nueva cotizaci�n',
     element: NuevaCotizacion,
   },
   { path: '/theme', name: 'Theme', element: Colors, exact: true },

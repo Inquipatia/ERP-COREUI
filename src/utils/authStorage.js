@@ -34,9 +34,17 @@ export const PERMISSIONS = [
   'admin.all',
 ]
 
-const uniq = (values) => [...new Set(values.filter(Boolean))]
+const OWNER_EMAILS = [
+  'r.rojas@rubikcreaciones.cl',
+  'brojas.romero@rubikcreaciones.cl',
+  'contacto@rubikcreaciones.cl',
+]
 
-const fixEncodingArtifacts = (value = '') =>
+const LIMITED_WORK_ORDER_EMAILS = ['jgutierrez@rubikcreaciones.cl']
+
+const uniq = (values) => [...new Set((values || []).filter(Boolean))]
+
+export const fixEncodingArtifacts = (value = '') =>
   String(value)
     .replace(/Ã¡/g, 'á')
     .replace(/Ã©/g, 'é')
@@ -50,6 +58,10 @@ const fixEncodingArtifacts = (value = '') =>
     .replace(/Ã“/g, 'Ó')
     .replace(/Ãš/g, 'Ú')
     .replace(/Ã‘/g, 'Ñ')
+    .replace(/Ã¼/g, 'ü')
+    .replace(/Â·/g, '·')
+    .replace(/Â°/g, '°')
+    .replace(/â†’/g, '→')
 
 const canonicalText = (value = '') =>
   fixEncodingArtifacts(value)
@@ -58,46 +70,56 @@ const canonicalText = (value = '') =>
     .toLowerCase()
     .trim()
 
+const SALES_PUBLIC_PERMISSIONS = [
+  'dashboard.view',
+  'clients.view',
+  'clients.manage',
+  'quotes.view',
+  'quotes.create',
+  'quotes.edit',
+  'quotes.export',
+  'documents.view',
+  'tenders.view',
+  'tenders.analyze',
+  'tenders.export',
+  'workorders.view',
+  'workorders.create',
+  'ai.chat',
+]
+
+const SALES_MANAGER_PERMISSIONS = [
+  'dashboard.view',
+  'clients.view',
+  'clients.manage',
+  'quotes.view',
+  'quotes.create',
+  'quotes.edit',
+  'quotes.approve',
+  'quotes.export',
+  'documents.view',
+  'documents.manage',
+  'tenders.view',
+  'tenders.analyze',
+  'tenders.export',
+  'workorders.view',
+  'workorders.create',
+  'workorders.assign',
+  'ai.chat',
+]
+
 const ROLE_PERMISSION_MAP = {
   'gerencia/admin': PERMISSIONS,
   administrador: PERMISSIONS,
   gerencia: PERMISSIONS,
+  gerente: PERMISSIONS,
+  dueno: PERMISSIONS,
+  duena: PERMISSIONS,
+  'gerencia / dueno / finanzas': PERMISSIONS,
   'gerente / dueno / finanzas': PERMISSIONS,
   'gerencia / dueno': PERMISSIONS,
+
   finanzas: [
     'dashboard.view',
-    'quotes.view',
-    'quotes.create',
-    'quotes.edit',
-    'quotes.approve',
-    'quotes.export',
-    'documents.view',
-    'documents.manage',
-    'tenders.view',
-    'tenders.export',
-    'finance.view',
-    'finance.manage',
-    'ai.chat',
-    'ai.finance',
-  ],
-  'finanzas / duena': [
-    'dashboard.view',
-    'quotes.view',
-    'quotes.create',
-    'quotes.edit',
-    'quotes.approve',
-    'quotes.export',
-    'documents.view',
-    'documents.manage',
-    'tenders.view',
-    'tenders.export',
-    'finance.view',
-    'finance.manage',
-    'ai.chat',
-    'ai.finance',
-  ],
-  'jefe de ventas': [
-    'dashboard.view',
     'clients.view',
     'clients.manage',
     'quotes.view',
@@ -113,59 +135,20 @@ const ROLE_PERMISSION_MAP = {
     'workorders.view',
     'workorders.create',
     'workorders.assign',
+    'workorders.close',
+    'finance.view',
+    'finance.manage',
     'ai.chat',
+    'ai.finance',
   ],
-  'jefe venta': [
-    'dashboard.view',
-    'clients.view',
-    'clients.manage',
-    'quotes.view',
-    'quotes.create',
-    'quotes.edit',
-    'quotes.approve',
-    'quotes.export',
-    'documents.view',
-    'documents.manage',
-    'tenders.view',
-    'tenders.analyze',
-    'tenders.export',
-    'workorders.view',
-    'workorders.create',
-    'workorders.assign',
-    'ai.chat',
-  ],
-  'ejecutivo venta publica': [
-    'dashboard.view',
-    'clients.view',
-    'clients.manage',
-    'quotes.view',
-    'quotes.create',
-    'quotes.edit',
-    'quotes.export',
-    'documents.view',
-    'tenders.view',
-    'tenders.analyze',
-    'tenders.export',
-    'workorders.view',
-    'workorders.create',
-    'ai.chat',
-  ],
-  'venta publica': [
-    'dashboard.view',
-    'clients.view',
-    'clients.manage',
-    'quotes.view',
-    'quotes.create',
-    'quotes.edit',
-    'quotes.export',
-    'documents.view',
-    'tenders.view',
-    'tenders.analyze',
-    'tenders.export',
-    'workorders.view',
-    'workorders.create',
-    'ai.chat',
-  ],
+
+  'jefe de ventas': SALES_MANAGER_PERMISSIONS,
+  'jefe venta': SALES_MANAGER_PERMISSIONS,
+
+  'ejecutivo venta publica': SALES_PUBLIC_PERMISSIONS,
+  'venta publica': SALES_PUBLIC_PERMISSIONS,
+  licitaciones: SALES_PUBLIC_PERMISSIONS,
+
   'jefe venta privada': [
     'dashboard.view',
     'clients.view',
@@ -176,27 +159,18 @@ const ROLE_PERMISSION_MAP = {
     'quotes.export',
     'documents.view',
     'documents.manage',
+    'tenders.view',
+    'tenders.analyze',
+    'tenders.export',
     'workorders.view',
     'workorders.create',
     'ai.chat',
   ],
-  'jefe venta privada / finanzas': [
-    'dashboard.view',
-    'clients.view',
-    'clients.manage',
-    'quotes.view',
-    'quotes.create',
-    'quotes.edit',
-    'quotes.export',
-    'documents.view',
-    'documents.manage',
-    'workorders.view',
-    'workorders.create',
-    'ai.chat',
-  ],
+
   'jefe de taller': [
     'dashboard.view',
     'workorders.view',
+    'workorders.create',
     'workorders.assign',
     'workorders.close',
     'materials.view',
@@ -206,9 +180,11 @@ const ROLE_PERMISSION_MAP = {
     'documents.view',
     'ai.chat',
   ],
+
   'diseno y publicidad': [
     'dashboard.view',
     'workorders.view',
+    'workorders.create',
     'documents.view',
     'tenders.view',
     'ai.chat',
@@ -216,23 +192,44 @@ const ROLE_PERMISSION_MAP = {
   'diseno / publicidad': [
     'dashboard.view',
     'workorders.view',
+    'workorders.create',
     'documents.view',
     'tenders.view',
     'ai.chat',
   ],
+
+  // Jorge queda limitado: puede ver órdenes/documentos, pero NO crear órdenes.
   'disenador imprenta': ['dashboard.view', 'workorders.view', 'documents.view', 'ai.chat'],
-  'diseno / diseno imprenta': [
+  'diseno / diseno imprenta': ['dashboard.view', 'workorders.view', 'documents.view', 'ai.chat'],
+
+  ventas: [
+    'dashboard.view',
+    'clients.view',
+    'clients.manage',
+    'quotes.view',
+    'quotes.create',
+    'quotes.edit',
+    'documents.view',
+    'workorders.view',
+    'workorders.create',
+    'ai.chat',
+  ],
+  produccion: [
     'dashboard.view',
     'workorders.view',
+    'workorders.create',
+    'workorders.assign',
+    'workorders.close',
+    'materials.view',
+    'products.view',
     'documents.view',
     'ai.chat',
   ],
-  ventas: ['dashboard.view', 'clients.view', 'quotes.view', 'quotes.create', 'workorders.view'],
-  produccion: ['dashboard.view', 'workorders.view', 'materials.view', 'products.view'],
-  diseno: ['dashboard.view', 'workorders.view', 'documents.view', 'ai.chat'],
+  diseno: ['dashboard.view', 'workorders.view', 'workorders.create', 'documents.view', 'ai.chat'],
 }
 
 export const ROUTE_PERMISSIONS = [
+  { prefix: '/erp/asistente', permission: 'ai.chat' },
   { prefix: '/erp/dashboard', permission: 'dashboard.view' },
   { prefix: '/erp/usuarios', permission: 'users.view' },
   { prefix: '/erp/clientes', permission: 'clients.view' },
@@ -251,34 +248,90 @@ export const ROUTE_PERMISSIONS = [
 export const normalizeRole = (role = '') => {
   const normalizedRole = canonicalText(role)
 
-  if (normalizedRole.includes('gerente') || normalizedRole === 'gerencia') return 'Gerencia/Admin'
-  if (normalizedRole.includes('gerencia/admin')) return 'Gerencia/Admin'
-  if (normalizedRole.includes('finanzas') && !normalizedRole.includes('venta privada'))
+  if (
+    normalizedRole.includes('gerencia/admin') ||
+    normalizedRole.includes('administrador') ||
+    normalizedRole.includes('gerente') ||
+    normalizedRole.includes('gerencia') ||
+    normalizedRole.includes('dueno') ||
+    normalizedRole.includes('duena')
+  ) {
+    return 'Gerencia/Admin'
+  }
+
+  if (normalizedRole.includes('finanzas') && !normalizedRole.includes('venta privada')) {
     return 'Finanzas'
-  if (normalizedRole.includes('jefe') && normalizedRole.includes('venta privada'))
+  }
+
+  if (normalizedRole.includes('jefe') && normalizedRole.includes('venta privada')) {
     return 'Jefe venta privada'
-  if (normalizedRole.includes('jefe') && normalizedRole.includes('venta')) return 'Jefe de ventas'
-  if (normalizedRole.includes('venta publica')) return 'Ejecutivo venta pública'
-  if (normalizedRole.includes('taller')) return 'Jefe de taller'
-  if (normalizedRole.includes('publicidad')) return 'Diseño y publicidad'
-  if (normalizedRole.includes('imprenta')) return 'Diseñador imprenta'
-  if (normalizedRole.includes('administrador')) return 'Gerencia/Admin'
+  }
+
+  if (normalizedRole.includes('jefe') && normalizedRole.includes('venta')) {
+    return 'Jefe de ventas'
+  }
+
+  if (normalizedRole.includes('venta publica') || normalizedRole.includes('licitaciones')) {
+    return 'Ejecutivo venta pública'
+  }
+
+  if (normalizedRole.includes('taller') || normalizedRole.includes('produccion')) {
+    return 'Jefe de taller'
+  }
+
+  if (normalizedRole.includes('publicidad') || normalizedRole.includes('marketing')) {
+    return 'Diseño y publicidad'
+  }
+
+  if (normalizedRole.includes('imprenta')) {
+    return 'Diseñador imprenta'
+  }
+
+  if (normalizedRole.includes('diseno')) {
+    return 'Diseño'
+  }
 
   return fixEncodingArtifacts(role || 'Ventas')
 }
 
 export const getPermissionsForRole = (role = '') => {
-  const key = canonicalText(normalizeRole(role))
+  const normalizedRole = normalizeRole(role)
+  const key = canonicalText(normalizedRole)
   const directPermissions = ROLE_PERMISSION_MAP[key] || ROLE_PERMISSION_MAP[canonicalText(role)]
 
   return uniq(directPermissions || ['dashboard.view'])
 }
 
 export const normalizeAuthUser = (user = {}) => {
-  const normalizedRole = normalizeRole(user.role || user.position || '')
-  const permissions = user.permissions?.length ? user.permissions : getPermissionsForRole(normalizedRole)
+  const normalizedEmail = String(user.email || '').trim().toLowerCase()
+  const isOwner = OWNER_EMAILS.includes(normalizedEmail)
+  const isWorkOrderLimited = LIMITED_WORK_ORDER_EMAILS.includes(normalizedEmail)
+  const normalizedRole = isOwner ? 'Gerencia/Admin' : normalizeRole(user.role || user.position || '')
 
-  return {
+  let permissions = user.permissions?.length
+    ? user.permissions
+    : getPermissionsForRole(normalizedRole || user.role)
+
+  // Dueños: Ramón, Benjamin e Ivone siempre tienen todo, aunque localStorage tenga rol antiguo.
+  if (isOwner) {
+    permissions = PERMISSIONS
+  }
+
+  // Regla Rubik: todos pueden crear órdenes de trabajo, excepto Jorge.
+  if (!isOwner && !isWorkOrderLimited) {
+    permissions = uniq([...permissions, 'workorders.view', 'workorders.create'])
+  }
+
+  // Jorge: puede ver órdenes/documentos, pero no crear/asignar/cerrar órdenes.
+  if (isWorkOrderLimited) {
+    permissions = uniq([...permissions, 'dashboard.view', 'workorders.view', 'documents.view', 'ai.chat'])
+    permissions = permissions.filter(
+      (permission) =>
+        !['workorders.create', 'workorders.assign', 'workorders.close'].includes(permission),
+    )
+  }
+
+  const normalizedUser = {
     id: user.id || user.email || '',
     name: fixEncodingArtifacts(user.name || ''),
     email: String(user.email || '').trim(),
@@ -289,6 +342,8 @@ export const normalizeAuthUser = (user = {}) => {
     permissions: uniq(permissions),
     password: user.password || TEMP_DEV_PASSWORD,
   }
+
+  return normalizedUser
 }
 
 export const getAuthUsers = () => {
@@ -296,18 +351,21 @@ export const getAuthUsers = () => {
   const usersByEmail = new Map()
 
   mockUsers.map(normalizeAuthUser).forEach((user) => {
+    if (!user.email) return
     usersByEmail.set(user.email.toLowerCase(), user)
   })
 
   ;(Array.isArray(storedUsers) ? storedUsers : []).map(normalizeAuthUser).forEach((user) => {
     if (!user.email) return
     const baseUser = usersByEmail.get(user.email.toLowerCase())
+
     usersByEmail.set(user.email.toLowerCase(), {
       ...baseUser,
       ...user,
-      permissions: user.permissions?.length
-        ? user.permissions
-        : getPermissionsForRole(user.role || baseUser?.role),
+      id: user.id || baseUser?.id || user.email,
+      role: OWNER_EMAILS.includes(user.email.toLowerCase()) ? 'Gerencia/Admin' : user.role,
+      status: user.status || baseUser?.status || 'Activo',
+      permissions: normalizeAuthUser({ ...baseUser, ...user }).permissions,
       password: user.password || baseUser?.password || TEMP_DEV_PASSWORD,
     })
   })
@@ -345,62 +403,77 @@ export const loginWithCredentials = ({ email, password }) => {
     return { ok: false, error: 'No existe un usuario con ese email.' }
   }
 
-  if (user.status === 'Inactivo') {
-    return { ok: false, error: 'El usuario está inactivo.' }
+  if (user.status !== 'Activo') {
+    return { ok: false, error: 'El usuario no está activo.' }
   }
 
-  if ((user.password || TEMP_DEV_PASSWORD) !== normalizedPassword) {
+  if (String(user.password || TEMP_DEV_PASSWORD) !== normalizedPassword) {
     return { ok: false, error: 'Contraseña incorrecta.' }
   }
 
   return { ok: true, user: setCurrentUser(user) }
 }
 
+export const loginWithEmailAndPassword = loginWithCredentials
+
+export const logout = clearCurrentUser
+
 export const userHasPermission = (user, permission) => {
   if (!permission) return true
   if (!user) return false
 
-  const permissions = user.permissions || []
-  return permissions.includes('admin.all') || permissions.includes(permission)
+  const normalizedUser = normalizeAuthUser(user)
+
+  return normalizedUser.permissions.includes('admin.all') || normalizedUser.permissions.includes(permission)
 }
 
-export const getPermissionForPath = (pathname = '') => {
-  const normalizedPath = pathname || '/'
-  const route = ROUTE_PERMISSIONS.find(({ prefix }) => normalizedPath.startsWith(prefix))
-  return route?.permission || null
+export const hasPermission = userHasPermission
+
+export const canAccessPath = (user, pathname = '') => {
+  if (!pathname || pathname === '/login' || pathname === '/no-permission') return true
+  if (!user) return false
+
+  const routeRule = [...ROUTE_PERMISSIONS]
+    .sort((first, second) => second.prefix.length - first.prefix.length)
+    .find((rule) => pathname.startsWith(rule.prefix))
+
+  if (!routeRule) return true
+
+  return userHasPermission(user, routeRule.permission)
 }
 
-export const canAccessPath = (user, pathname = '') =>
-  userHasPermission(user, getPermissionForPath(pathname))
+export const canAccessRoute = canAccessPath
 
-export const filterNavigationByPermissions = (items = [], hasPermission) =>
-  items
+export const getDefaultRouteForUser = (user) => {
+  if (!user) return '/login'
+  if (userHasPermission(user, 'dashboard.view')) return '/erp/dashboard'
+  if (userHasPermission(user, 'workorders.view')) return '/erp/ordenes-trabajo'
+  if (userHasPermission(user, 'tenders.view')) return '/erp/licitaciones'
+  if (userHasPermission(user, 'quotes.view')) return '/erp/cotizaciones'
+  return '/no-permission'
+}
+
+export const filterNavigationByPermissions = (items = [], hasPermissionCallback = () => true) =>
+  (Array.isArray(items) ? items : [])
     .map((item) => {
-      const isErpItem =
-        item.to?.startsWith('/erp') ||
-        item.to?.startsWith('/cotizador-5000') ||
-        item.to === '/dashboard'
-      const isDemoItem = item.to && !isErpItem
-      const isCoreUiExternal = item.href?.includes('coreui.io')
-      const isStandaloneTitle = !item.to && !item.href && !item.items
-      const permission =
-        item.permission ||
-        (item.to ? getPermissionForPath(item.to) : null) ||
-        (isDemoItem || isCoreUiExternal || isStandaloneTitle ? 'admin.all' : null)
+      if (Array.isArray(item.items)) {
+        const filteredItems = filterNavigationByPermissions(item.items, hasPermissionCallback)
 
-      if (permission && !hasPermission(permission)) {
+        if (item.permission && !hasPermissionCallback(item.permission)) {
+          return null
+        }
+
+        if (filteredItems.length === 0) {
+          return null
+        }
+
+        return { ...item, items: filteredItems }
+      }
+
+      if (item.permission && !hasPermissionCallback(item.permission)) {
         return null
       }
 
-      if (!item.items) {
-        return item
-      }
-
-      const filteredChildren = filterNavigationByPermissions(item.items, hasPermission)
-      if (filteredChildren.length === 0) {
-        return null
-      }
-
-      return { ...item, items: filteredChildren }
+      return item
     })
     .filter(Boolean)

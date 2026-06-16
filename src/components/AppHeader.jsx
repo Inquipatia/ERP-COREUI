@@ -1,23 +1,3 @@
-/**
- * AppHeader Component
- *
- * Main application header with navigation, theme switcher, and user menu.
- * Features include:
- * - Sidebar toggle button
- * - Primary navigation links
- * - Notification and action icons
- * - Theme switcher (light/dark/auto)
- * - User dropdown menu
- * - Breadcrumb navigation
- * - Sticky positioning with scroll shadow effect
- *
- * @component
- * @example
- * return (
- *   <AppHeader />
- * )
- */
-
 import React, { useEffect, useRef } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useSelector, useDispatch } from 'react-redux'
@@ -32,8 +12,8 @@ import {
   CHeader,
   CHeaderNav,
   CHeaderToggler,
-  CNavLink,
   CNavItem,
+  CNavLink,
   useColorModes,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
@@ -50,17 +30,6 @@ import {
 import { AppBreadcrumb } from './index'
 import { useAuth } from '../context/AuthContext'
 
-/**
- * AppHeader functional component
- *
- * Manages header UI including:
- * - Redux integration for sidebar state
- * - Theme management with CoreUI useColorModes hook
- * - Scroll-based shadow effect
- * - Responsive navigation
- *
- * @returns {React.ReactElement} Header component with navigation and controls
- */
 const AppHeader = () => {
   const headerRef = useRef()
   const { colorMode, setColorMode } = useColorModes('coreui-free-react-admin-template-theme')
@@ -94,12 +63,22 @@ const AppHeader = () => {
         >
           <CIcon icon={cilMenu} size="lg" />
         </CHeaderToggler>
+
         <CHeaderNav className="d-none d-md-flex">
-          <CNavItem>
-            <CNavLink to="/erp/dashboard" as={NavLink}>
-              Dashboard ERP
-            </CNavLink>
-          </CNavItem>
+          {hasPermission('dashboard.view') && (
+            <CNavItem>
+              <CNavLink to="/erp/dashboard" as={NavLink}>
+                Dashboard ERP
+              </CNavLink>
+            </CNavItem>
+          )}
+          {hasPermission('ai.chat') && (
+            <CNavItem>
+              <CNavLink to="/erp/asistente" as={NavLink}>
+                Asistente IA
+              </CNavLink>
+            </CNavItem>
+          )}
           {hasPermission('quotes.create') && (
             <CNavItem>
               <CNavLink to="/cotizador-5000/nueva-cotizacion" as={NavLink}>
@@ -115,6 +94,7 @@ const AppHeader = () => {
             </CNavItem>
           )}
         </CHeaderNav>
+
         <CHeaderNav className="ms-auto">
           <CNavItem>
             <CNavLink href="#">
@@ -132,10 +112,12 @@ const AppHeader = () => {
             </CNavLink>
           </CNavItem>
         </CHeaderNav>
+
         <CHeaderNav>
           <li className="nav-item py-1">
             <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
           </li>
+
           <CDropdown variant="nav-item" placement="bottom-end">
             <CDropdownToggle caret={false}>
               {colorMode === 'dark' ? (
@@ -176,14 +158,16 @@ const AppHeader = () => {
               </CDropdownItem>
             </CDropdownMenu>
           </CDropdown>
+
           <li className="nav-item py-1">
             <div className="vr h-100 mx-2 text-body text-opacity-75"></div>
           </li>
+
           <CDropdown variant="nav-item" placement="bottom-end">
             <CDropdownToggle caret className="d-flex align-items-center gap-2">
               <span className="fw-semibold">{currentUser?.name || 'Usuario'}</span>
             </CDropdownToggle>
-            <CDropdownMenu className="pt-0" style={{ minWidth: '280px' }}>
+            <CDropdownMenu className="pt-0" style={{ minWidth: '300px' }}>
               <div className="px-3 py-3 border-bottom">
                 <div className="fw-semibold">{currentUser?.name || 'Usuario'}</div>
                 <div className="small text-body-secondary">{currentUser?.email || '-'}</div>
@@ -192,6 +176,16 @@ const AppHeader = () => {
                   <CBadge color="secondary">{currentUser?.area || 'Sin área'}</CBadge>
                 </div>
               </div>
+              {hasPermission('ai.chat') && (
+                <CDropdownItem as={NavLink} to="/erp/asistente">
+                  Abrir Asistente IA
+                </CDropdownItem>
+              )}
+              {hasPermission('users.view') && (
+                <CDropdownItem as={NavLink} to="/erp/usuarios">
+                  Usuarios y perfiles
+                </CDropdownItem>
+              )}
               <CDropdownDivider />
               <CDropdownItem as="button" type="button" onClick={handleLogout}>
                 Cerrar sesión
@@ -200,6 +194,7 @@ const AppHeader = () => {
           </CDropdown>
         </CHeaderNav>
       </CContainer>
+
       <CContainer className="px-4" fluid>
         <AppBreadcrumb />
       </CContainer>
