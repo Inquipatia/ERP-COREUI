@@ -1,0 +1,46 @@
+export const mockMarketingMetrics = {
+  campaigns: [
+    {
+      id: 'campaign-1',
+      name: 'Lanzamiento gráfica corporativa',
+      channel: 'Instagram',
+      leads: 18,
+      interactions: 420,
+      performance: 82,
+      status: 'Activa',
+    },
+    {
+      id: 'campaign-2',
+      name: 'Captación letreros y volumétricas',
+      channel: 'Facebook',
+      leads: 11,
+      interactions: 310,
+      performance: 68,
+      status: 'Activa',
+    },
+    {
+      id: 'campaign-3',
+      name: 'Búsqueda empresas B2B',
+      channel: 'Google Ads',
+      leads: 9,
+      interactions: 180,
+      performance: 74,
+      status: 'En evaluación',
+    },
+    {
+      id: 'campaign-4',
+      name: 'Contenido institucional',
+      channel: 'LinkedIn',
+      leads: 6,
+      interactions: 95,
+      performance: 61,
+      status: 'Planificada',
+    },
+  ],
+  channels: [
+    { name: 'Instagram', leads: 18, interactions: 420, performance: 82 },
+    { name: 'Facebook', leads: 11, interactions: 310, performance: 68 },
+    { name: 'Google Ads', leads: 9, interactions: 180, performance: 74 },
+    { name: 'LinkedIn', leads: 6, interactions: 95, performance: 61 },
+  ],
+}

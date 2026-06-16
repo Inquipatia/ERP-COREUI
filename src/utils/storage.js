@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 
 export const STORAGE_KEYS = {
+  users: 'rubik.erp.users',
   clients: 'rubik.erp.clients',
   materials: 'rubik.erp.materials',
   products: 'rubik.erp.products',
   quotes: 'rubik.erp.quotes',
   documents: 'rubik.erp.documents',
+  tenders: 'rubik.erp.tenders',
   commercialSettings: 'rubik.erp.commercialSettings',
 }
 

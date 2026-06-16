@@ -17,7 +17,8 @@
     "lint": "eslint",
     "pdf-server": "node server/exportPdf.js",
     "serve": "vite preview",
-    "start": "vite"
+    "start": "vite",
+    "tender-server": "node server/tenderAnalyzerServer.js"
   },
   "dependencies": {
     "@coreui/chartjs": "^4.2.0",
@@ -35,6 +36,9 @@
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "file-saver": "^2.0.5",
+    "mammoth": "^1.12.0",
+    "multer": "^2.2.0",
+    "pdfjs-dist": "^6.0.227",
     "prop-types": "^15.8.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

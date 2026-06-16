@@ -25,6 +25,8 @@ const MaterialesERP = React.lazy(() => import('./views/erp/Materiales'))
 const ProductosServiciosERP = React.lazy(() => import('./views/erp/ProductosServicios'))
 const CotizacionesERP = React.lazy(() => import('./views/erp/Cotizaciones'))
 const DocumentosERP = React.lazy(() => import('./views/erp/documentos/Documentos'))
+const Licitaciones = React.lazy(() => import('./views/erp/licitaciones/Licitaciones'))
+const OrdenesTrabajo = React.lazy(() => import('./views/erp/ordenes-trabajo/OrdenesTrabajo'))
 const ConfiguracionRubikERP = React.lazy(() => import('./views/erp/ConfiguracionRubik'))
 const Colors = React.lazy(() => import('./views/theme/colors/Colors'))
 const Typography = React.lazy(() => import('./views/theme/typography/Typography'))
@@ -110,6 +112,8 @@ export const routes = [
   },
   { path: '/erp/cotizaciones', name: 'Cotizaciones', element: CotizacionesERP },
   { path: '/erp/documentos', name: 'Documentos', element: DocumentosERP },
+  { path: '/erp/licitaciones', name: 'Licitaciones', element: Licitaciones },
+  { path: '/erp/ordenes-trabajo', name: 'Órdenes de trabajo', element: OrdenesTrabajo },
   { path: '/erp/configuracion', name: 'Configuración Rubik', element: ConfiguracionRubikERP },
   { path: '/cotizador-5000', exact: true, name: 'Cotizador 5000' },
   {

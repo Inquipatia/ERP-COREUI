@@ -128,6 +128,16 @@ const _nav = [
       },
       {
         component: CNavItem,
+        name: 'Licitaciones',
+        to: '/erp/licitaciones',
+      },
+      {
+        component: CNavItem,
+        name: 'Órdenes de trabajo',
+        to: '/erp/ordenes-trabajo',
+      },
+      {
+        component: CNavItem,
         name: 'Configuración Rubik',
         to: '/erp/configuracion',
       },
