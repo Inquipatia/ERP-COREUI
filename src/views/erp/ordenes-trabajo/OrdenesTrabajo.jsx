@@ -28,6 +28,7 @@ import {
   CTableRow,
 } from '@coreui/react'
 import { mockUsers } from '../../../data/mockUsers'
+import { useAuth } from '../../../context/AuthContext'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 import { STORAGE_KEYS, useLocalStorageState } from '../../../utils/storage'
 import {
@@ -220,6 +221,12 @@ const matchesFilters = (order, filters) => {
 }
 
 const OrdenesTrabajo = () => {
+  const { currentUser, hasPermission } = useAuth()
+  const canCreateWorkOrders = hasPermission('workorders.create')
+  const canAssignWorkOrders = hasPermission('workorders.assign')
+  const canCloseWorkOrders = hasPermission('workorders.close')
+  const canManageWorkOrders =
+    canCreateWorkOrders || canAssignWorkOrders || canCloseWorkOrders || hasPermission('admin.all')
   const [workOrders, setWorkOrders] = useLocalStorageState(
     WORK_ORDER_STORAGE_KEY,
     mockWorkOrders.map(normalizeWorkOrder),
@@ -240,29 +247,40 @@ const OrdenesTrabajo = () => {
 
   const normalizedOrders = useMemo(() => workOrders.map(normalizeWorkOrder), [workOrders])
   const normalizedUsers = useMemo(() => getMergedUserOptions(users), [users])
+  const visibleOrders = useMemo(() => {
+    if (canManageWorkOrders) {
+      return normalizedOrders
+    }
+
+    const currentEmail = String(currentUser?.email || '').toLowerCase()
+
+    return normalizedOrders.filter(
+      (order) => String(order.assigneeEmail || '').toLowerCase() === currentEmail,
+    )
+  }, [canManageWorkOrders, currentUser?.email, normalizedOrders])
 
   const filteredOrders = useMemo(
-    () => normalizedOrders.filter((order) => matchesFilters(order, filters)),
-    [normalizedOrders, filters],
+    () => visibleOrders.filter((order) => matchesFilters(order, filters)),
+    [visibleOrders, filters],
   )
 
   const orderSummary = useMemo(() => {
-    const total = normalizedOrders.length
-    const pending = normalizedOrders.filter((order) =>
+    const total = visibleOrders.length
+    const pending = visibleOrders.filter((order) =>
       ['Borrador', 'Pendiente'].includes(order.status),
     ).length
-    const inProgress = normalizedOrders.filter((order) =>
+    const inProgress = visibleOrders.filter((order) =>
       ['En proceso', 'En revisión'].includes(order.status),
     ).length
-    const finished = normalizedOrders.filter((order) =>
+    const finished = visibleOrders.filter((order) =>
       ['Aprobada', 'Finalizada'].includes(order.status),
     ).length
-    const urgent = normalizedOrders.filter((order) => order.priority === 'Urgente').length
-    const overdue = normalizedOrders.filter(isOverdue).length
+    const urgent = visibleOrders.filter((order) => order.priority === 'Urgente').length
+    const overdue = visibleOrders.filter(isOverdue).length
     const completion =
       total > 0
         ? Math.round(
-            normalizedOrders.reduce((sum, order) => sum + getCompletionPercent(order), 0) / total,
+            visibleOrders.reduce((sum, order) => sum + getCompletionPercent(order), 0) / total,
           )
         : 0
 
@@ -276,26 +294,26 @@ const OrdenesTrabajo = () => {
       completion,
       filtered: filteredOrders.length,
     }
-  }, [normalizedOrders, filteredOrders])
+  }, [visibleOrders, filteredOrders])
 
   const statusSummary = useMemo(
     () =>
       WORK_ORDER_STATUSES.map((status) => ({
         status,
-        count: normalizedOrders.filter((order) => order.status === status).length,
+        count: visibleOrders.filter((order) => order.status === status).length,
       })).filter((item) => item.count > 0),
-    [normalizedOrders],
+    [visibleOrders],
   )
 
   const areaSummary = useMemo(
     () =>
       WORK_ORDER_AREAS.map((area) => ({
         area,
-        count: normalizedOrders.filter(
+        count: visibleOrders.filter(
           (order) => order.sourceArea === area || order.targetArea === area,
         ).length,
       })).filter((item) => item.count > 0),
-    [normalizedOrders],
+    [visibleOrders],
   )
 
   const handleFilterChange = (event) => {
@@ -309,6 +327,11 @@ const OrdenesTrabajo = () => {
   }
 
   const handleUserSelect = (kind, event) => {
+    if (kind === 'assignee' && !canAssignWorkOrders) {
+      setError('Tu perfil no permite asignar órdenes de trabajo.')
+      return
+    }
+
     const selectedEmail = event.target.value
     const selectedUser = normalizedUsers.find((user) => user.email === selectedEmail)
 
@@ -344,9 +367,20 @@ const OrdenesTrabajo = () => {
   }
 
   const openCreateModal = () => {
+    if (!canCreateWorkOrders) {
+      setMessage('Tu perfil no permite crear órdenes de trabajo.')
+      return
+    }
+
+    const currentUserArea = getWorkOrderAreaFromUser(currentUser || {})
+
     setEditingId(null)
     setFormData({
       ...emptyWorkOrder,
+      requesterName: currentUser?.name || '',
+      requesterEmail: currentUser?.email || '',
+      requesterRole: currentUser?.role || currentUser?.position || '',
+      sourceArea: currentUserArea || emptyWorkOrder.sourceArea,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -355,6 +389,11 @@ const OrdenesTrabajo = () => {
   }
 
   const openEditModal = (order) => {
+    if (!canAssignWorkOrders && !canCloseWorkOrders) {
+      setMessage('Tu perfil solo permite ver órdenes asignadas.')
+      return
+    }
+
     setEditingId(order.id)
     setFormData(normalizeWorkOrder(order))
     setError('')
@@ -383,6 +422,21 @@ const OrdenesTrabajo = () => {
   const handleSubmit = (event) => {
     event.preventDefault()
 
+    if (!editingId && !canCreateWorkOrders) {
+      setError('Tu perfil no permite crear órdenes de trabajo.')
+      return
+    }
+
+    if (editingId && !canAssignWorkOrders && !canCloseWorkOrders) {
+      setError('Tu perfil no permite editar órdenes de trabajo.')
+      return
+    }
+
+    if (['Aprobada', 'Finalizada'].includes(formData.status) && !canCloseWorkOrders) {
+      setError('Tu perfil no permite cerrar o aprobar órdenes de trabajo.')
+      return
+    }
+
     const validationError = validateOrder()
 
     if (validationError) {
@@ -410,11 +464,21 @@ const OrdenesTrabajo = () => {
   }
 
   const handleDelete = (orderId) => {
+    if (!canAssignWorkOrders) {
+      setMessage('Tu perfil no permite eliminar órdenes de trabajo.')
+      return
+    }
+
     setWorkOrders((currentOrders) => currentOrders.filter((order) => order.id !== orderId))
     setMessage('Orden de trabajo eliminada localmente.')
   }
 
   const handleDuplicate = (order) => {
+    if (!canCreateWorkOrders) {
+      setMessage('Tu perfil no permite duplicar órdenes de trabajo.')
+      return
+    }
+
     const duplicatedOrder = normalizeWorkOrder({
       ...order,
       id: undefined,
@@ -609,9 +673,11 @@ const OrdenesTrabajo = () => {
               >
                 Exportar listado Excel
               </CButton>
-              <CButton color="primary" type="button" onClick={openCreateModal}>
-                Nueva orden
-              </CButton>
+              {canCreateWorkOrders && (
+                <CButton color="primary" type="button" onClick={openCreateModal}>
+                  Nueva orden
+                </CButton>
+              )}
             </div>
           </CCardHeader>
 
@@ -619,6 +685,12 @@ const OrdenesTrabajo = () => {
             {message && (
               <CAlert color="success" dismissible onClose={() => setMessage('')}>
                 {message}
+              </CAlert>
+            )}
+
+            {!canManageWorkOrders && (
+              <CAlert color="info">
+                Tu perfil muestra solo órdenes asignadas a {currentUser?.email || 'tu usuario'}.
               </CAlert>
             )}
 
@@ -800,30 +872,36 @@ const OrdenesTrabajo = () => {
                             >
                               Ver
                             </CButton>
-                            <CButton
-                              color="secondary"
-                              variant="outline"
-                              type="button"
-                              onClick={() => openEditModal(order)}
-                            >
-                              Editar
-                            </CButton>
-                            <CButton
-                              color="info"
-                              variant="outline"
-                              type="button"
-                              onClick={() => handleDuplicate(order)}
-                            >
-                              Duplicar
-                            </CButton>
-                            <CButton
-                              color="danger"
-                              variant="outline"
-                              type="button"
-                              onClick={() => handleDelete(order.id)}
-                            >
-                              Eliminar
-                            </CButton>
+                            {(canAssignWorkOrders || canCloseWorkOrders) && (
+                              <CButton
+                                color="secondary"
+                                variant="outline"
+                                type="button"
+                                onClick={() => openEditModal(order)}
+                              >
+                                Editar
+                              </CButton>
+                            )}
+                            {canCreateWorkOrders && (
+                              <CButton
+                                color="info"
+                                variant="outline"
+                                type="button"
+                                onClick={() => handleDuplicate(order)}
+                              >
+                                Duplicar
+                              </CButton>
+                            )}
+                            {canAssignWorkOrders && (
+                              <CButton
+                                color="danger"
+                                variant="outline"
+                                type="button"
+                                onClick={() => handleDelete(order.id)}
+                              >
+                                Eliminar
+                              </CButton>
+                            )}
                           </CButtonGroup>
                         </CTableDataCell>
                       </CTableRow>
@@ -1020,6 +1098,7 @@ const OrdenesTrabajo = () => {
                   name="assigneeEmail"
                   value={formData.assigneeEmail}
                   onChange={(event) => handleUserSelect('assignee', event)}
+                  disabled={!canAssignWorkOrders}
                 >
                   <option value="">Seleccionar usuario</option>
                   {normalizedUsers.map((user) => (
@@ -1054,6 +1133,7 @@ const OrdenesTrabajo = () => {
                   name="sourceArea"
                   value={formData.sourceArea}
                   onChange={handleChange}
+                  disabled={!canCreateWorkOrders && !canAssignWorkOrders}
                 >
                   {WORK_ORDER_AREAS.map((area) => (
                     <option key={area} value={area}>
@@ -1070,6 +1150,7 @@ const OrdenesTrabajo = () => {
                   name="targetArea"
                   value={formData.targetArea}
                   onChange={handleChange}
+                  disabled={!canAssignWorkOrders}
                 >
                   {WORK_ORDER_AREAS.map((area) => (
                     <option key={area} value={area}>
@@ -1103,7 +1184,10 @@ const OrdenesTrabajo = () => {
                   value={formData.status}
                   onChange={handleChange}
                 >
-                  {WORK_ORDER_STATUSES.map((status) => (
+                  {WORK_ORDER_STATUSES.filter(
+                    (status) =>
+                      canCloseWorkOrders || !['Aprobada', 'Finalizada'].includes(status),
+                  ).map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>

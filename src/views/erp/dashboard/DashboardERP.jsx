@@ -24,6 +24,7 @@ import { mockMaterials } from '../../../data/mockMaterials'
 import { mockProducts } from '../../../data/mockProducts'
 import { mockQuotes } from '../../../data/mockQuotes'
 import { mockUsers } from '../../../data/mockUsers'
+import { useAuth } from '../../../context/AuthContext'
 import { STORAGE_KEYS, useLocalStorageState } from '../../../utils/storage'
 import {
   normalizeDocument,
@@ -260,6 +261,8 @@ const toChartDataset = (entries, label) => ({
 })
 
 const DashboardERP = () => {
+  const { hasPermission } = useAuth()
+  const canViewFinance = hasPermission('finance.view')
   const [clients] = useLocalStorageState(STORAGE_KEYS.clients, mockClients.map(normalizeClient))
   const [materials] = useLocalStorageState(
     STORAGE_KEYS.materials,
@@ -581,16 +584,23 @@ const DashboardERP = () => {
               </CAlert>
             )}
 
+            {!canViewFinance && (
+              <CAlert color="warning" className="mb-4">
+                Las métricas financieras están ocultas para tu perfil.
+              </CAlert>
+            )}
+
             <CRow className="g-4">
               <CCol sm={6} xl={3}>
                 <CCard className="h-100 border-0 bg-primary text-white">
                   <CCardBody>
                     <div className="small text-white-50">Total cotizado histórico</div>
                     <div className="fs-4 fw-semibold">
-                      {formatCurrency(dashboardData.totalQuoted)}
+                      {canViewFinance ? formatCurrency(dashboardData.totalQuoted) : 'Oculto'}
                     </div>
                     <div className="small text-white-50">
-                      Mes actual: {formatCurrency(dashboardData.totalQuotedMonth)}
+                      Mes actual:{' '}
+                      {canViewFinance ? formatCurrency(dashboardData.totalQuotedMonth) : 'Oculto'}
                     </div>
                     <CProgress className="mt-3" color="light" value={100} />
                   </CCardBody>
@@ -602,7 +612,7 @@ const DashboardERP = () => {
                   <CCardBody>
                     <div className="small text-white-50">Promedio por cotización</div>
                     <div className="fs-4 fw-semibold">
-                      {formatCurrency(dashboardData.averageQuote)}
+                      {canViewFinance ? formatCurrency(dashboardData.averageQuote) : 'Oculto'}
                     </div>
                     <div className="small text-white-50">
                       {normalizedQuotes.length} cotizaciones registradas
@@ -871,10 +881,15 @@ const DashboardERP = () => {
           <CCardBody>
             <div className="text-body-secondary small">Materiales activos</div>
             <div className="fs-3 fw-semibold">{dashboardData.activeMaterials.length}</div>
-            <div className="small text-body-secondary">Cobertura costo base</div>
-            <CProgress color="success" value={dashboardData.materialCostCoverage} />
+            <div className="small text-body-secondary">
+              {canViewFinance ? 'Cobertura costo base' : 'Costos ocultos'}
+            </div>
+            <CProgress
+              color="success"
+              value={canViewFinance ? dashboardData.materialCostCoverage : 0}
+            />
             <div className="small text-body-secondary mt-1">
-              {formatPercent(dashboardData.materialCostCoverage)}
+              {canViewFinance ? formatPercent(dashboardData.materialCostCoverage) : 'finance.view'}
             </div>
           </CCardBody>
         </CCard>
@@ -885,10 +900,15 @@ const DashboardERP = () => {
           <CCardBody>
             <div className="text-body-secondary small">Productos / servicios activos</div>
             <div className="fs-3 fw-semibold">{dashboardData.activeProducts.length}</div>
-            <div className="small text-body-secondary">Cobertura precio sugerido</div>
-            <CProgress color="info" value={dashboardData.productPriceCoverage} />
+            <div className="small text-body-secondary">
+              {canViewFinance ? 'Cobertura precio sugerido' : 'Precios ocultos'}
+            </div>
+            <CProgress
+              color="info"
+              value={canViewFinance ? dashboardData.productPriceCoverage : 0}
+            />
             <div className="small text-body-secondary mt-1">
-              {formatPercent(dashboardData.productPriceCoverage)}
+              {canViewFinance ? formatPercent(dashboardData.productPriceCoverage) : 'finance.view'}
             </div>
           </CCardBody>
         </CCard>
@@ -929,28 +949,34 @@ const DashboardERP = () => {
             <small>Evolución comercial de los últimos 6 meses</small>
           </CCardHeader>
           <CCardBody>
-            <CChartBar
-              data={{
-                labels: dashboardData.recentMonths.map((month) => month.label),
-                datasets: [
-                  {
-                    label: 'Monto cotizado',
-                    backgroundColor: '#3399ff',
-                    data: dashboardData.monthlyQuoteTotals,
-                  },
-                ],
-              }}
-              options={{
-                plugins: { legend: { display: false } },
-                scales: {
-                  y: {
-                    ticks: {
-                      callback: (value) => `$${Number(value).toLocaleString('es-CL')}`,
+            {canViewFinance ? (
+              <CChartBar
+                data={{
+                  labels: dashboardData.recentMonths.map((month) => month.label),
+                  datasets: [
+                    {
+                      label: 'Monto cotizado',
+                      backgroundColor: '#3399ff',
+                      data: dashboardData.monthlyQuoteTotals,
+                    },
+                  ],
+                }}
+                options={{
+                  plugins: { legend: { display: false } },
+                  scales: {
+                    y: {
+                      ticks: {
+                        callback: (value) => `$${Number(value).toLocaleString('es-CL')}`,
+                      },
                     },
                   },
-                },
-              }}
-            />
+                }}
+              />
+            ) : (
+              <CAlert color="warning" className="mb-0">
+                Gráfico financiero oculto para tu perfil.
+              </CAlert>
+            )}
           </CCardBody>
         </CCard>
       </CCol>
@@ -1260,9 +1286,12 @@ const DashboardERP = () => {
                       <div key={client}>
                         <div className="d-flex justify-content-between small mb-1">
                           <span>{client}</span>
-                          <strong>{formatCurrency(total)}</strong>
+                          <strong>{canViewFinance ? formatCurrency(total) : 'Oculto'}</strong>
                         </div>
-                        <CProgress color="primary" value={(total / maxTopClientTotal) * 100} />
+                        <CProgress
+                          color="primary"
+                          value={canViewFinance ? (total / maxTopClientTotal) * 100 : 0}
+                        />
                       </div>
                     ))}
                   </div>
@@ -1279,9 +1308,12 @@ const DashboardERP = () => {
                       <div key={seller}>
                         <div className="d-flex justify-content-between small mb-1">
                           <span>{seller}</span>
-                          <strong>{formatCurrency(total)}</strong>
+                          <strong>{canViewFinance ? formatCurrency(total) : 'Oculto'}</strong>
                         </div>
-                        <CProgress color="success" value={(total / maxTopSellerTotal) * 100} />
+                        <CProgress
+                          color="success"
+                          value={canViewFinance ? (total / maxTopSellerTotal) * 100 : 0}
+                        />
                       </div>
                     ))}
                   </div>
@@ -1324,7 +1356,9 @@ const DashboardERP = () => {
                       <div className="text-body-secondary small">{document.empresa}</div>
                     </CTableDataCell>
                     <CTableDataCell>{document.vendedor}</CTableDataCell>
-                    <CTableDataCell>{formatCurrency(document.total)}</CTableDataCell>
+                    <CTableDataCell>
+                      {canViewFinance ? formatCurrency(document.total) : 'Oculto'}
+                    </CTableDataCell>
                     <CTableDataCell>
                       <CBadge color={getStatusColor(document.estado)}>{document.estado}</CBadge>
                     </CTableDataCell>

@@ -28,6 +28,7 @@ import {
   CTableRow,
 } from '@coreui/react'
 import { mockProducts } from '../../data/mockProducts'
+import { useAuth } from '../../context/AuthContext'
 import { createLocalId, STORAGE_KEYS, useLocalStorageState } from '../../utils/storage'
 import { exportListToExcel } from '../../utils/exportListToExcel'
 
@@ -139,6 +140,8 @@ const getStatusColor = (status) => {
 }
 
 const ProductosServicios = () => {
+  const { hasPermission } = useAuth()
+  const canViewFinance = hasPermission('finance.view')
   const [products, setProducts] = useLocalStorageState(
     STORAGE_KEYS.products,
     mockProducts.map(normalizeProduct),
@@ -382,37 +385,43 @@ const ProductosServicios = () => {
         </CCard>
       </CCol>
 
-      <CCol md={3} sm={6}>
-        <CCard className="h-100">
-          <CCardBody>
-            <div className="text-body-secondary small">Precio sugerido</div>
-            <div className="fs-3 fw-semibold">{productSummary.priceCoveragePercent}%</div>
-            <div className="small text-body-secondary">cobertura de precios</div>
-            <CProgress
-              thin
-              color={productSummary.priceCoveragePercent >= 70 ? 'success' : 'warning'}
-              value={productSummary.priceCoveragePercent}
-            />
-          </CCardBody>
-        </CCard>
-      </CCol>
+      {canViewFinance && (
+        <>
+          <CCol md={3} sm={6}>
+            <CCard className="h-100">
+              <CCardBody>
+                <div className="text-body-secondary small">Precio sugerido</div>
+                <div className="fs-3 fw-semibold">{productSummary.priceCoveragePercent}%</div>
+                <div className="small text-body-secondary">cobertura de precios</div>
+                <CProgress
+                  thin
+                  color={productSummary.priceCoveragePercent >= 70 ? 'success' : 'warning'}
+                  value={productSummary.priceCoveragePercent}
+                />
+              </CCardBody>
+            </CCard>
+          </CCol>
 
-      <CCol md={3} sm={6}>
-        <CCard className="h-100">
-          <CCardBody>
-            <div className="text-body-secondary small">Utilidad sugerida total</div>
-            <div className="fs-5 fw-semibold">{formatCurrency(productSummary.totalSuggestedProfit)}</div>
-            <div className="small text-body-secondary">
-              margen promedio {formatPercent(productSummary.averageMargin)}
-            </div>
-            <CProgress
-              thin
-              color={productSummary.averageMargin >= 25 ? 'success' : 'warning'}
-              value={Math.min(productSummary.averageMargin, 100)}
-            />
-          </CCardBody>
-        </CCard>
-      </CCol>
+          <CCol md={3} sm={6}>
+            <CCard className="h-100">
+              <CCardBody>
+                <div className="text-body-secondary small">Utilidad sugerida total</div>
+                <div className="fs-5 fw-semibold">
+                  {formatCurrency(productSummary.totalSuggestedProfit)}
+                </div>
+                <div className="small text-body-secondary">
+                  margen promedio {formatPercent(productSummary.averageMargin)}
+                </div>
+                <CProgress
+                  thin
+                  color={productSummary.averageMargin >= 25 ? 'success' : 'warning'}
+                  value={Math.min(productSummary.averageMargin, 100)}
+                />
+              </CCardBody>
+            </CCard>
+          </CCol>
+        </>
+      )}
 
       <CCol xs={12}>
         <CCard className="mb-4">
@@ -428,7 +437,7 @@ const ProductosServicios = () => {
                 type="button"
                 variant="outline"
                 onClick={handleExportProductsList}
-                disabled={filteredProducts.length === 0}
+                disabled={filteredProducts.length === 0 || !canViewFinance}
               >
                 Exportar listado Excel
               </CButton>
@@ -445,6 +454,12 @@ const ProductosServicios = () => {
               </CAlert>
             )}
 
+            {!canViewFinance && (
+              <CAlert color="warning">
+                Costos, precios sugeridos y márgenes están ocultos para tu perfil.
+              </CAlert>
+            )}
+
             <CRow className="mb-3 g-3">
               <CCol lg={5}>
                 <CFormInput
@@ -458,8 +473,14 @@ const ProductosServicios = () => {
                 <CBadge color="success">Activos: {productSummary.active}</CBadge>
                 <CBadge color="secondary">Inactivos: {productSummary.inactive}</CBadge>
                 <CBadge color="warning">En evaluación: {productSummary.inEvaluation}</CBadge>
-                <CBadge color="info">Con costo: {productSummary.withBaseCost}</CBadge>
-                <CBadge color="primary">Con precio: {productSummary.withSuggestedPrice}</CBadge>
+                {canViewFinance && (
+                  <>
+                    <CBadge color="info">Con costo: {productSummary.withBaseCost}</CBadge>
+                    <CBadge color="primary">
+                      Con precio: {productSummary.withSuggestedPrice}
+                    </CBadge>
+                  </>
+                )}
               </CCol>
             </CRow>
 
@@ -470,9 +491,13 @@ const ProductosServicios = () => {
                   <CTableHeaderCell>Categoría</CTableHeaderCell>
                   <CTableHeaderCell>Unidad</CTableHeaderCell>
                   <CTableHeaderCell>Descripción técnica</CTableHeaderCell>
-                  <CTableHeaderCell>Costo base</CTableHeaderCell>
-                  <CTableHeaderCell>Precio sugerido</CTableHeaderCell>
-                  <CTableHeaderCell>Margen</CTableHeaderCell>
+                  {canViewFinance && (
+                    <>
+                      <CTableHeaderCell>Costo base</CTableHeaderCell>
+                      <CTableHeaderCell>Precio sugerido</CTableHeaderCell>
+                      <CTableHeaderCell>Margen</CTableHeaderCell>
+                    </>
+                  )}
                   <CTableHeaderCell>Material asociado</CTableHeaderCell>
                   <CTableHeaderCell>Estado</CTableHeaderCell>
                   <CTableHeaderCell>Ficha</CTableHeaderCell>
@@ -493,13 +518,19 @@ const ProductosServicios = () => {
                       <CTableDataCell style={{ minWidth: '260px' }}>
                         {product.technicalDescription}
                       </CTableDataCell>
-                      <CTableDataCell>{formatCurrency(product.baseCost)}</CTableDataCell>
-                      <CTableDataCell>{formatCurrency(product.suggestedPrice)}</CTableDataCell>
-                      <CTableDataCell>
-                        <CBadge color={marginPercent >= 25 ? 'success' : 'warning'}>
-                          {marginPercent}%
-                        </CBadge>
-                      </CTableDataCell>
+                      {canViewFinance && (
+                        <>
+                          <CTableDataCell>{formatCurrency(product.baseCost)}</CTableDataCell>
+                          <CTableDataCell>
+                            {formatCurrency(product.suggestedPrice)}
+                          </CTableDataCell>
+                          <CTableDataCell>
+                            <CBadge color={marginPercent >= 25 ? 'success' : 'warning'}>
+                              {marginPercent}%
+                            </CBadge>
+                          </CTableDataCell>
+                        </>
+                      )}
                       <CTableDataCell>{product.material}</CTableDataCell>
                       <CTableDataCell>
                         <CBadge color={getStatusColor(product.status)}>{product.status}</CBadge>
@@ -584,29 +615,33 @@ const ProductosServicios = () => {
                 <CFormInput id="unit" name="unit" value={formData.unit} onChange={handleChange} />
               </CCol>
 
-              <CCol md={4}>
-                <CFormLabel htmlFor="baseCost">Costo base</CFormLabel>
-                <CFormInput
-                  id="baseCost"
-                  name="baseCost"
-                  type="number"
-                  min="0"
-                  value={formData.baseCost}
-                  onChange={handleChange}
-                />
-              </CCol>
+              {canViewFinance && (
+                <>
+                  <CCol md={4}>
+                    <CFormLabel htmlFor="baseCost">Costo base</CFormLabel>
+                    <CFormInput
+                      id="baseCost"
+                      name="baseCost"
+                      type="number"
+                      min="0"
+                      value={formData.baseCost}
+                      onChange={handleChange}
+                    />
+                  </CCol>
 
-              <CCol md={4}>
-                <CFormLabel htmlFor="suggestedPrice">Precio sugerido</CFormLabel>
-                <CFormInput
-                  id="suggestedPrice"
-                  name="suggestedPrice"
-                  type="number"
-                  min="0"
-                  value={formData.suggestedPrice}
-                  onChange={handleChange}
-                />
-              </CCol>
+                  <CCol md={4}>
+                    <CFormLabel htmlFor="suggestedPrice">Precio sugerido</CFormLabel>
+                    <CFormInput
+                      id="suggestedPrice"
+                      name="suggestedPrice"
+                      type="number"
+                      min="0"
+                      value={formData.suggestedPrice}
+                      onChange={handleChange}
+                    />
+                  </CCol>
+                </>
+              )}
 
               <CCol md={8}>
                 <CFormLabel htmlFor="material">Material asociado</CFormLabel>

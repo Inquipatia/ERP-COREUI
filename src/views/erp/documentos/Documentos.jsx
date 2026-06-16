@@ -30,6 +30,7 @@ import {
   CTableRow,
 } from '@coreui/react'
 import { CChartBar, CChartDoughnut } from '@coreui/react-chartjs'
+import { useAuth } from '../../../context/AuthContext'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 
 import {
@@ -96,6 +97,8 @@ const isQuoteDocument = (document) =>
   document.tipoDocumento === 'Cotización' || document.tipoDocumento === 'Cotizaci¢n'
 
 const Documentos = () => {
+  const { hasPermission } = useAuth()
+  const canManageDocuments = hasPermission('documents.manage')
   const [documents, setDocuments] = useDocumentStorage()
   const [, setQuotes] = useLocalStorageState(STORAGE_KEYS.quotes, [])
   const [filters, setFilters] = useState(emptyFilters)
@@ -182,6 +185,11 @@ const Documentos = () => {
   }
 
   const handleDuplicate = (document) => {
+    if (!canManageDocuments) {
+      setMessage('Tu perfil no permite duplicar documentos.')
+      return
+    }
+
     const duplicatedDocument = duplicateDocument(document)
     setDocuments((currentDocuments) => upsertDocument(currentDocuments, duplicatedDocument))
     setQuotes((currentQuotes) => upsertQuoteFromDocument(currentQuotes, duplicatedDocument))
@@ -191,6 +199,11 @@ const Documentos = () => {
   }
 
   const handleDelete = (document) => {
+    if (!canManageDocuments) {
+      setMessage('Tu perfil no permite eliminar documentos.')
+      return
+    }
+
     setDocuments((currentDocuments) => deleteDocument(currentDocuments, document.id))
     setQuotes((currentQuotes) => deleteQuoteByDocument(currentQuotes, document))
     setMessage('Documento eliminado localmente.')
@@ -337,6 +350,11 @@ const Documentos = () => {
   const handleEditSubmit = (event) => {
     event.preventDefault()
 
+    if (!canManageDocuments) {
+      setMessage('Tu perfil no permite editar documentos.')
+      return
+    }
+
     const updatedDocument = normalizeDocument({
       ...editingDocument,
       montoNeto: Number(editingDocument.montoNeto) || 0,
@@ -366,6 +384,11 @@ const Documentos = () => {
   }
 
   const openEdit = (document) => {
+    if (!canManageDocuments) {
+      setMessage('Tu perfil no permite editar documentos.')
+      return
+    }
+
     setEditingDocument({
       ...document,
       tags: document.tags.join(', '),
@@ -501,6 +524,13 @@ const Documentos = () => {
             {message && (
               <CAlert color="info" dismissible onClose={() => setMessage('')}>
                 {message}
+              </CAlert>
+            )}
+
+            {!canManageDocuments && (
+              <CAlert color="info">
+                Tu perfil puede ver y descargar documentos, pero editar, duplicar o eliminar
+                requiere permiso documents.manage.
               </CAlert>
             )}
 
@@ -672,32 +702,36 @@ const Documentos = () => {
                             Ver
                           </CButton>
 
-                          <CButton
-                            color="secondary"
-                            variant="outline"
-                            type="button"
-                            onClick={() => openEdit(document)}
-                          >
-                            Editar
-                          </CButton>
+                          {canManageDocuments && (
+                            <>
+                              <CButton
+                                color="secondary"
+                                variant="outline"
+                                type="button"
+                                onClick={() => openEdit(document)}
+                              >
+                                Editar
+                              </CButton>
 
-                          <CButton
-                            color="info"
-                            variant="outline"
-                            type="button"
-                            onClick={() => handleDuplicate(document)}
-                          >
-                            Duplicar
-                          </CButton>
+                              <CButton
+                                color="info"
+                                variant="outline"
+                                type="button"
+                                onClick={() => handleDuplicate(document)}
+                              >
+                                Duplicar
+                              </CButton>
 
-                          <CButton
-                            color="danger"
-                            variant="outline"
-                            type="button"
-                            onClick={() => handleDelete(document)}
-                          >
-                            Eliminar
-                          </CButton>
+                              <CButton
+                                color="danger"
+                                variant="outline"
+                                type="button"
+                                onClick={() => handleDelete(document)}
+                              >
+                                Eliminar
+                              </CButton>
+                            </>
+                          )}
 
                           <CButton
                             color="dark"
@@ -961,4 +995,3 @@ const Documentos = () => {
 }
 
 export default Documentos
-

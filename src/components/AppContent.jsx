@@ -24,6 +24,18 @@ import { CContainer, CSpinner } from '@coreui/react'
 
 // routes config
 import { routes } from '../routes'
+import { useAuth } from '../context/AuthContext'
+
+const ProtectedRoute = ({ route }) => {
+  const { canAccessPath } = useAuth()
+  const Component = route.element
+
+  if (!canAccessPath(route.path)) {
+    return <Navigate to="/no-permission" replace />
+  }
+
+  return <Component />
+}
 
 /**
  * AppContent functional component
@@ -50,12 +62,12 @@ const AppContent = () => {
                   path={route.path}
                   exact={route.exact}
                   name={route.name}
-                  element={<route.element />}
+                  element={<ProtectedRoute route={route} />}
                 />
               )
             )
           })}
-          <Route path="/" element={<Navigate to="dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/erp/dashboard" replace />} />
         </Routes>
       </Suspense>
     </CContainer>

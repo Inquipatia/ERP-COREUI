@@ -23,6 +23,7 @@ import {
 } from '@coreui/react'
 import { mockClients } from '../../data/mockClients'
 import { mockProducts } from '../../data/mockProducts'
+import { useAuth } from '../../context/AuthContext'
 import {
   rubikCommercialSettings,
   rubikCompany as defaultRubikCompany,
@@ -205,6 +206,7 @@ const getQuoteAmounts = (quoteItems, ivaRate = 19) => {
 }
 
 const NuevaCotizacion = () => {
+  const { currentUser } = useAuth()
   const nextItemId = useRef(2)
   const [clientData, setClientData] = useState({
     client: '',
@@ -238,7 +240,15 @@ const NuevaCotizacion = () => {
   )
   const [selectedClientId, setSelectedClientId] = useState('')
   const [selectedProductId, setSelectedProductId] = useState('')
-  const [selectedSellerId, setSelectedSellerId] = useState(sellerProfiles[0].id)
+  const [selectedSellerId, setSelectedSellerId] = useState(() => {
+    const profileFromUser = sellerProfiles.find(
+      (seller) =>
+        seller.email.toLowerCase() === String(currentUser?.email || '').toLowerCase() ||
+        seller.name.toLowerCase() === String(currentUser?.name || '').toLowerCase(),
+    )
+
+    return profileFromUser?.id || (currentUser?.email ? 'current-user' : sellerProfiles[0].id)
+  })
   const [items, setItems] = useState(() => [createQuoteItem(1)])
   const [generatedQuote, setGeneratedQuote] = useState(null)
   const [validationError, setValidationError] = useState('')
@@ -246,9 +256,34 @@ const NuevaCotizacion = () => {
   const [isExportingExcel, setIsExportingExcel] = useState(false)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
 
+  const sellerOptions = useMemo(() => {
+    if (!currentUser?.email) {
+      return sellerProfiles
+    }
+
+    const currentUserAlreadyExists = sellerProfiles.some(
+      (seller) =>
+        seller.email.toLowerCase() === currentUser.email.toLowerCase() ||
+        seller.name.toLowerCase() === String(currentUser.name || '').toLowerCase(),
+    )
+
+    if (currentUserAlreadyExists) {
+      return sellerProfiles
+    }
+
+    return [
+      {
+        id: 'current-user',
+        name: currentUser.name,
+        email: currentUser.email,
+      },
+      ...sellerProfiles,
+    ]
+  }, [currentUser])
+
   const selectedSeller = useMemo(
-    () => sellerProfiles.find((seller) => seller.id === selectedSellerId) || sellerProfiles[0],
-    [selectedSellerId],
+    () => sellerOptions.find((seller) => seller.id === selectedSellerId) || sellerOptions[0],
+    [selectedSellerId, sellerOptions],
   )
   const clients = useMemo(() => storedClients.map(normalizeClient), [storedClients])
   const products = useMemo(() => storedProducts.map(normalizeProduct), [storedProducts])
@@ -708,7 +743,7 @@ const NuevaCotizacion = () => {
                       value={selectedSellerId}
                       onChange={(event) => setSelectedSellerId(event.target.value)}
                     >
-                      {sellerProfiles.map((seller) => (
+                      {sellerOptions.map((seller) => (
                         <option key={seller.id} value={seller.id}>
                           {seller.name}
                         </option>

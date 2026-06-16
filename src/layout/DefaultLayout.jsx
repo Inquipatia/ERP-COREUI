@@ -20,7 +20,9 @@
  */
 
 import React from 'react'
+import { Navigate, useLocation } from 'react-router-dom'
 import { AppContent, AppSidebar, AppFooter, AppHeader } from '../components/index'
+import { useAuth } from '../context/AuthContext'
 
 /**
  * DefaultLayout functional component
@@ -36,6 +38,13 @@ import { AppContent, AppSidebar, AppFooter, AppHeader } from '../components/inde
  * @returns {React.ReactElement} Complete application layout
  */
 const DefaultLayout = () => {
+  const location = useLocation()
+  const { currentUser } = useAuth()
+
+  if (!currentUser) {
+    return <Navigate to="/login" replace state={{ from: location }} />
+  }
+
   return (
     <div>
       <AppSidebar />

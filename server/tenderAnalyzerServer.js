@@ -47,8 +47,19 @@ app.get('/health', (request, response) => {
 const getExtension = (file) => path.extname(file.originalname || '').toLowerCase()
 
 const extractTextFromTxt = async (file) => ({
-  text: `--- ${file.originalname} | texto TXT ---\n${file.buffer.toString('utf8')}`,
-  warnings: [],
+  fileName: file.originalname,
+  fileType: file.mimetype || 'text/plain',
+  extractedText: `--- ${file.originalname} | texto TXT ---\n${file.buffer.toString('utf8')}`,
+  extractionMethod: 'buffer-utf8',
+  extractionWarnings: [],
+  segments: file.buffer
+    .toString('utf8')
+    .split(/\r?\n/)
+    .map((line, index) => ({
+      text: line,
+      row: index + 1,
+    }))
+    .filter((segment) => segment.text.trim()),
 })
 
 const extractTextFromFile = async (file) => {
@@ -76,8 +87,12 @@ const extractTextFromFile = async (file) => {
   }
 
   return {
-    text: '',
-    warnings: [`Formato no soportado para "${file.originalname}".`],
+    fileName: file.originalname,
+    fileType: file.mimetype || getExtension(file),
+    extractedText: '',
+    extractionMethod: 'unsupported',
+    extractionWarnings: [`Formato no soportado para "${file.originalname}".`],
+    segments: [],
   }
 }
 
@@ -99,31 +114,23 @@ app.post(
       console.log(`Received POST /analyze-tender-documents with ${files.length} files`)
 
       const sources = []
-      const warnings = []
 
       for (const file of files) {
         const extracted = await extractTextFromFile(file)
 
-        warnings.push(...(extracted.warnings || []))
         sources.push({
-          fileName: file.originalname,
-          fileType: file.mimetype || getExtension(file),
-          text: extracted.text || '',
-          warnings: extracted.warnings || [],
+          fileName: extracted.fileName || file.originalname,
+          fileType: extracted.fileType || file.mimetype || getExtension(file),
+          extractedText: extracted.extractedText || '',
+          extractionMethod: extracted.extractionMethod || 'unknown',
+          extractionWarnings: extracted.extractionWarnings || [],
+          segments: extracted.segments || [],
         })
       }
 
       const analysis = analyzeTenderContent({ sources, manualText })
 
-      response.json({
-        ...analysis,
-        sourceFiles: sources.map((source) => ({
-          name: source.fileName,
-          type: source.fileType,
-          warnings: source.warnings,
-        })),
-        warnings,
-      })
+      response.json(analysis)
     } catch (error) {
       console.error('Error en /analyze-tender-documents:', error)
       response.status(500).json({

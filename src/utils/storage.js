@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 export const STORAGE_KEYS = {
+  currentUser: 'rubik.erp.currentUser',
   users: 'rubik.erp.users',
   clients: 'rubik.erp.clients',
   materials: 'rubik.erp.materials',

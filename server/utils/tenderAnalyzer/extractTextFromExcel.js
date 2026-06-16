@@ -18,13 +18,14 @@ const formatCellValue = (value) => {
 }
 
 const extractTextFromExcel = async (file) => {
-  const warnings = []
+  const extractionWarnings = []
   const workbook = new ExcelJS.Workbook()
 
   try {
     await workbook.xlsx.load(file.buffer)
 
     const sheetTexts = []
+    const segments = []
 
     workbook.eachSheet((worksheet) => {
       const rows = []
@@ -36,7 +37,15 @@ const extractTextFromExcel = async (file) => {
           const cellText = formatCellValue(cell.value).trim()
 
           if (cellText) {
-            values.push(cellText)
+            const cellAddress = cell.address
+
+            values.push(`${cellAddress}: ${cellText}`)
+            segments.push({
+              text: cellText,
+              sheet: worksheet.name,
+              row: rowNumber,
+              cell: cellAddress,
+            })
           }
         })
 
@@ -50,12 +59,27 @@ const extractTextFromExcel = async (file) => {
       }
     })
 
-    return { text: sheetTexts.join('\n\n'), warnings }
+    return {
+      fileName: file.originalname,
+      fileType:
+        file.mimetype || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      extractedText: sheetTexts.join('\n\n'),
+      extractionMethod: 'exceljs',
+      extractionWarnings,
+      segments,
+    }
   } catch (error) {
-    warnings.push(
+    extractionWarnings.push(
       `No se pudo extraer texto del Excel "${file.originalname}". Si es XLS antiguo, conviértelo a XLSX. Detalle: ${error.message}`,
     )
-    return { text: '', warnings }
+    return {
+      fileName: file.originalname,
+      fileType: file.mimetype || 'application/vnd.ms-excel',
+      extractedText: '',
+      extractionMethod: 'exceljs',
+      extractionWarnings,
+      segments: [],
+    }
   }
 }
 

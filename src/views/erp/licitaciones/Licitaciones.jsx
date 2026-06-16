@@ -29,6 +29,7 @@ import {
   CTableHeaderCell,
   CTableRow,
 } from '@coreui/react'
+import { useAuth } from '../../../context/AuthContext'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 import { useLocalStorageState } from '../../../utils/storage'
 import {
@@ -189,6 +190,49 @@ const formListSections = [
   ['Ítems valorizables', 'technicalItems'],
 ]
 
+const fieldLabels = {
+  tenderId: 'ID licitación',
+  title: 'Nombre',
+  buyer: 'Comprador',
+  buyerRut: 'RUT comprador',
+  budget: 'Presupuesto',
+  closingDate: 'Fecha cierre',
+  closingTime: 'Hora cierre',
+  openingDate: 'Fecha apertura',
+  openingTime: 'Hora apertura',
+  adjudicationDate: 'Fecha adjudicación',
+  adjudicationTime: 'Hora adjudicación',
+  contractSignDate: 'Firma contrato',
+  questionsDeadline: 'Límite consultas',
+  answersDate: 'Fecha respuestas',
+  object: 'Objeto',
+  administrativeRequirements: 'Administrativo',
+  technicalRequirements: 'Técnico',
+  economicRequirements: 'Económico',
+  requiredDocuments: 'Documentos obligatorios',
+  essentialDocuments: 'Documentos esenciales',
+  evaluationCriteria: 'Criterios',
+  guarantees: 'Garantías',
+  paymentTerms: 'Forma de pago',
+  penalties: 'Multas',
+  risks: 'Riesgos',
+  suggestedQuestions: 'Preguntas sugeridas',
+  technicalItems: 'Ítems',
+}
+
+const getFieldSourceRows = (fieldSources = {}) =>
+  Object.entries(fieldSources)
+    .flatMap(([field, source]) => {
+      if (!source) return []
+      const sources = Array.isArray(source) ? source : [source]
+
+      return sources.map((item) => ({
+        field,
+        ...item,
+      }))
+    })
+    .filter((source) => source.sourceFile)
+
 const buildTenderChecklist = (tender) => [
   {
     label: 'Revisar documentos administrativos obligatorios',
@@ -220,21 +264,6 @@ const buildTenderChecklist = (tender) => [
   },
 ]
 
-const mergeAnalyzedTender = (currentTender, analyzedTender) => ({
-  ...currentTender,
-  ...analyzedTender,
-  id: currentTender.id,
-  createdAt: currentTender.createdAt,
-  updatedAt: currentTender.updatedAt,
-  status: currentTender.status || analyzedTender.status,
-  observations: currentTender.observations,
-  sourceText: analyzedTender.sourceText || currentTender.sourceText,
-  sourceDocuments:
-    analyzedTender.sourceDocuments?.length > 0
-      ? analyzedTender.sourceDocuments
-      : currentTender.sourceDocuments,
-})
-
 const getAnalyzerSourceDocumentNames = (sourceFiles = []) =>
   sourceFiles
     .map((sourceFile) => {
@@ -243,20 +272,81 @@ const getAnalyzerSourceDocumentNames = (sourceFiles = []) =>
     })
     .filter(Boolean)
 
-const normalizeAnalyzerResponse = (response, currentTender) =>
-  normalizeTender({
-    ...response,
-    objectOfContract: response.objectOfContract || response.object || '',
-    sourceText: response.extractedText || response.sourceText || currentTender.sourceText,
+const normalizeAnalyzerResponse = (response, currentTender) => {
+  const tenderData = response.tenderData || response
+  const diagnostics = response.documentDiagnostics || []
+
+  return normalizeTender({
+    ...tenderData,
+    objectOfContract: tenderData.objectOfContract || tenderData.object || '',
+    sourceText: response.extractedText || tenderData.sourceText || currentTender.sourceText,
     sourceDocuments: [
       ...new Set([
         ...(currentTender.sourceDocuments || []),
         ...getAnalyzerSourceDocumentNames(response.sourceFiles || []),
+        ...diagnostics.map((diagnostic) => diagnostic.fileName).filter(Boolean),
       ]),
     ],
+    fieldSources: response.fieldSources || tenderData.fieldSources || {},
+    documentDiagnostics: diagnostics,
+    globalWarnings: response.globalWarnings || tenderData.globalWarnings || [],
+  })
+}
+
+const isEmptyValue = (value) => {
+  if (Array.isArray(value)) return value.length === 0
+  if (typeof value === 'number') return value === 0
+  if (value && typeof value === 'object') return Object.keys(value).length === 0
+  return !String(value || '').trim()
+}
+
+const mergeAnalyzedTender = (currentTender, analyzedTender, mode = 'replace') => {
+  const protectedKeys = ['id', 'createdAt', 'updatedAt', 'status', 'observations']
+  const merged = { ...currentTender }
+
+  Object.entries(analyzedTender).forEach(([key, value]) => {
+    if (protectedKeys.includes(key)) return
+
+    if (
+      [
+        'sourceText',
+        'sourceDocuments',
+        'fieldSources',
+        'documentDiagnostics',
+        'globalWarnings',
+      ].includes(key)
+    ) {
+      merged[key] = value
+      return
+    }
+
+    if (mode === 'fill-empty' && !isEmptyValue(currentTender[key])) {
+      return
+    }
+
+    merged[key] = value
   })
 
+  merged.id = currentTender.id
+  merged.createdAt = currentTender.createdAt
+  merged.updatedAt = currentTender.updatedAt
+  merged.status = currentTender.status || analyzedTender.status
+  merged.observations = currentTender.observations
+
+  return merged
+}
+
 const Licitaciones = () => {
+  const { currentUser } = useAuth()
+  const currentActor = currentUser
+    ? {
+        id: currentUser.id,
+        name: currentUser.name,
+        email: currentUser.email,
+        role: currentUser.role,
+        area: currentUser.area,
+      }
+    : null
   const [tenders, setTenders] = useLocalStorageState(
     TENDER_STORAGE_KEY,
     mockTenders.map(normalizeTender),
@@ -375,7 +465,7 @@ const Licitaciones = () => {
     setAnalysisWarnings([])
   }
 
-  const handleAnalyzeDocuments = async () => {
+  const handleAnalyzeDocuments = async (mode = 'fill-empty') => {
     if (selectedFiles.length === 0 && !formData.sourceText.trim()) {
       setError('Sube documentos o pega texto de respaldo antes de analizar.')
       return
@@ -405,20 +495,30 @@ const Licitaciones = () => {
           throw new Error(result.error || 'No se pudieron analizar los documentos.')
         }
 
-        setFormData((current) =>
-          mergeAnalyzedTender(current, normalizeAnalyzerResponse(result, current)),
-        )
-        setAnalysisWarnings(result.warnings || [])
+        setFormData((current) => ({
+          ...mergeAnalyzedTender(current, normalizeAnalyzerResponse(result, current), mode),
+          analyzedBy: currentActor,
+        }))
+        setAnalysisWarnings(result.globalWarnings || [])
         setMessage(
-          'Documentos analizados por backend. Revisa y ajusta los campos antes de guardar.',
+          mode === 'fill-empty'
+            ? 'Documentos analizados: se completaron solo campos vacíos.'
+            : 'Documentos analizados: se reemplazaron los campos detectados.',
         )
         return
       }
 
       const analyzedTender = analyzeTenderText(formData.sourceText)
 
-      setFormData((current) => mergeAnalyzedTender(current, analyzedTender))
-      setMessage('Texto analizado localmente. Revisa y ajusta los campos antes de guardar.')
+      setFormData((current) => ({
+        ...mergeAnalyzedTender(current, analyzedTender, mode),
+        analyzedBy: currentActor,
+      }))
+      setMessage(
+        mode === 'fill-empty'
+          ? 'Texto analizado localmente: se completaron solo campos vacíos.'
+          : 'Texto analizado localmente: se reemplazaron los campos detectados.',
+      )
     } catch (analysisError) {
       console.error('Error analizando documentos de licitación:', analysisError)
       setError(
@@ -440,6 +540,7 @@ const Licitaciones = () => {
       ...mergeAnalyzedTender(tender, analyzedTender),
       id: tender.id,
       createdAt: tender.createdAt,
+      analyzedBy: currentActor || tender.analyzedBy,
       updatedAt: new Date().toISOString(),
     })
 
@@ -475,6 +576,8 @@ const Licitaciones = () => {
       ...formData,
       id: editingId || formData.id || undefined,
       budget: Number(formData.budget) || 0,
+      createdBy: formData.createdBy || currentActor,
+      analyzedBy: formData.analyzedBy || currentActor,
       createdAt: formData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
@@ -926,6 +1029,10 @@ const Licitaciones = () => {
                           <div>{selectedTender.buyer || '-'}</div>
                         </CCol>
                         <CCol md={6}>
+                          <div className="text-body-secondary small">RUT comprador</div>
+                          <div>{selectedTender.buyerRut || '-'}</div>
+                        </CCol>
+                        <CCol md={6}>
                           <div className="text-body-secondary small">Estado</div>
                           <CBadge color={getStatusColor(selectedTender.status)}>
                             {selectedTender.status}
@@ -955,6 +1062,26 @@ const Licitaciones = () => {
                             </div>
                           )}
                         </CCol>
+                        {getFieldSourceRows(selectedTender.fieldSources).length > 0 && (
+                          <CCol xs={12}>
+                            <div className="text-body-secondary small">
+                              Origen de datos detectados
+                            </div>
+                            <div className="small">
+                              {getFieldSourceRows(selectedTender.fieldSources)
+                                .slice(0, 8)
+                                .map((source) => (
+                                  <div key={`${source.field}-${source.sourceFile}-${source.value}`}>
+                                    <strong>{fieldLabels[source.field] || source.field}:</strong>{' '}
+                                    {source.sourceFile}
+                                    {source.sourcePage ? `, p.${source.sourcePage}` : ''}
+                                    {source.sourceSheet ? `, hoja ${source.sourceSheet}` : ''}
+                                    {source.sourceRow ? `, fila ${source.sourceRow}` : ''}
+                                  </div>
+                                ))}
+                            </div>
+                          </CCol>
+                        )}
                       </CRow>
                     </CCardBody>
                   </CCard>
@@ -972,24 +1099,41 @@ const Licitaciones = () => {
                             <CTableHeaderCell>Cierre</CTableHeaderCell>
                             <CTableDataCell>
                               {formatDate(selectedTender.closingDate)}
+                              {selectedTender.closingTime ? ` ${selectedTender.closingTime}` : ''}
                             </CTableDataCell>
                           </CTableRow>
                           <CTableRow>
                             <CTableHeaderCell>Apertura</CTableHeaderCell>
                             <CTableDataCell>
                               {formatDate(selectedTender.openingDate)}
+                              {selectedTender.openingTime ? ` ${selectedTender.openingTime}` : ''}
                             </CTableDataCell>
                           </CTableRow>
                           <CTableRow>
                             <CTableHeaderCell>Adjudicación</CTableHeaderCell>
                             <CTableDataCell>
                               {formatDate(selectedTender.adjudicationDate)}
+                              {selectedTender.adjudicationTime
+                                ? ` ${selectedTender.adjudicationTime}`
+                                : ''}
                             </CTableDataCell>
                           </CTableRow>
                           <CTableRow>
                             <CTableHeaderCell>Límite contrato</CTableHeaderCell>
                             <CTableDataCell>
                               {formatDate(selectedTender.contractSignDate)}
+                            </CTableDataCell>
+                          </CTableRow>
+                          <CTableRow>
+                            <CTableHeaderCell>Límite consultas</CTableHeaderCell>
+                            <CTableDataCell>
+                              {formatDate(selectedTender.questionsDeadline)}
+                            </CTableDataCell>
+                          </CTableRow>
+                          <CTableRow>
+                            <CTableHeaderCell>Fecha respuestas</CTableHeaderCell>
+                            <CTableDataCell>
+                              {formatDate(selectedTender.answersDate)}
                             </CTableDataCell>
                           </CTableRow>
                         </CTableBody>
@@ -1014,6 +1158,56 @@ const Licitaciones = () => {
                   </CCard>
                 </CCol>
               </CRow>
+
+              {selectedTender.documentDiagnostics.length > 0 && (
+                <CCard className="mb-4">
+                  <CCardHeader>
+                    <strong>Diagnóstico de lectura documental</strong>
+                  </CCardHeader>
+                  <CCardBody>
+                    <CTable responsive hover small align="middle">
+                      <CTableHead>
+                        <CTableRow>
+                          <CTableHeaderCell>Archivo</CTableHeaderCell>
+                          <CTableHeaderCell>Tipo detectado</CTableHeaderCell>
+                          <CTableHeaderCell>Confianza</CTableHeaderCell>
+                          <CTableHeaderCell>Método</CTableHeaderCell>
+                          <CTableHeaderCell>Campos encontrados</CTableHeaderCell>
+                          <CTableHeaderCell>Advertencias</CTableHeaderCell>
+                        </CTableRow>
+                      </CTableHead>
+                      <CTableBody>
+                        {selectedTender.documentDiagnostics.map((diagnostic) => (
+                          <CTableRow key={`detail-${diagnostic.fileName}`}>
+                            <CTableDataCell className="fw-semibold">
+                              {diagnostic.fileName}
+                            </CTableDataCell>
+                            <CTableDataCell>
+                              <CBadge color="info">{diagnostic.detectedType}</CBadge>
+                            </CTableDataCell>
+                            <CTableDataCell>
+                              {Math.round((diagnostic.confidence || 0) * 100)}%
+                            </CTableDataCell>
+                            <CTableDataCell>{diagnostic.extractionMethod || '-'}</CTableDataCell>
+                            <CTableDataCell>
+                              {(diagnostic.fieldsFound || []).length === 0
+                                ? '-'
+                                : diagnostic.fieldsFound
+                                    .map((field) => fieldLabels[field] || field)
+                                    .join(', ')}
+                            </CTableDataCell>
+                            <CTableDataCell>
+                              {(diagnostic.extractionWarnings || []).length === 0
+                                ? '-'
+                                : diagnostic.extractionWarnings.join(' | ')}
+                            </CTableDataCell>
+                          </CTableRow>
+                        ))}
+                      </CTableBody>
+                    </CTable>
+                  </CCardBody>
+                </CCard>
+              )}
 
               <CRow className="g-4">
                 <CCol md={6}>
@@ -1281,6 +1475,109 @@ const Licitaciones = () => {
                 )}
               </CCol>
 
+              {formData.documentDiagnostics.length > 0 && (
+                <CCol xs={12}>
+                  <CCard>
+                    <CCardHeader>
+                      <strong>Diagnóstico de lectura documental</strong>
+                    </CCardHeader>
+                    <CCardBody>
+                      <CTable responsive hover small align="middle">
+                        <CTableHead>
+                          <CTableRow>
+                            <CTableHeaderCell>Archivo</CTableHeaderCell>
+                            <CTableHeaderCell>Tipo detectado</CTableHeaderCell>
+                            <CTableHeaderCell>Confianza</CTableHeaderCell>
+                            <CTableHeaderCell>Método</CTableHeaderCell>
+                            <CTableHeaderCell>Campos encontrados</CTableHeaderCell>
+                            <CTableHeaderCell>Advertencias</CTableHeaderCell>
+                          </CTableRow>
+                        </CTableHead>
+                        <CTableBody>
+                          {formData.documentDiagnostics.map((diagnostic) => (
+                            <CTableRow key={diagnostic.fileName}>
+                              <CTableDataCell className="fw-semibold">
+                                {diagnostic.fileName}
+                              </CTableDataCell>
+                              <CTableDataCell>
+                                <CBadge color="info">{diagnostic.detectedType}</CBadge>
+                              </CTableDataCell>
+                              <CTableDataCell>
+                                {Math.round((diagnostic.confidence || 0) * 100)}%
+                              </CTableDataCell>
+                              <CTableDataCell>{diagnostic.extractionMethod || '-'}</CTableDataCell>
+                              <CTableDataCell>
+                                {(diagnostic.fieldsFound || []).length === 0
+                                  ? '-'
+                                  : diagnostic.fieldsFound
+                                      .map((field) => fieldLabels[field] || field)
+                                      .join(', ')}
+                              </CTableDataCell>
+                              <CTableDataCell>
+                                {(diagnostic.extractionWarnings || []).length === 0
+                                  ? '-'
+                                  : diagnostic.extractionWarnings.join(' | ')}
+                              </CTableDataCell>
+                            </CTableRow>
+                          ))}
+                        </CTableBody>
+                      </CTable>
+                    </CCardBody>
+                  </CCard>
+                </CCol>
+              )}
+
+              {getFieldSourceRows(formData.fieldSources).length > 0 && (
+                <CCol xs={12}>
+                  <CCard>
+                    <CCardHeader>
+                      <strong>Origen de datos detectados</strong>
+                    </CCardHeader>
+                    <CCardBody>
+                      <CTable responsive hover small align="middle">
+                        <CTableHead>
+                          <CTableRow>
+                            <CTableHeaderCell>Campo</CTableHeaderCell>
+                            <CTableHeaderCell>Valor</CTableHeaderCell>
+                            <CTableHeaderCell>Archivo</CTableHeaderCell>
+                            <CTableHeaderCell>Ubicación</CTableHeaderCell>
+                            <CTableHeaderCell>Confianza</CTableHeaderCell>
+                          </CTableRow>
+                        </CTableHead>
+                        <CTableBody>
+                          {getFieldSourceRows(formData.fieldSources)
+                            .slice(0, 18)
+                            .map((source, index) => (
+                              <CTableRow key={`${source.field}-${source.sourceFile}-${index}`}>
+                                <CTableDataCell>
+                                  {fieldLabels[source.field] || source.field}
+                                </CTableDataCell>
+                                <CTableDataCell>
+                                  {String(source.value || '').slice(0, 140)}
+                                </CTableDataCell>
+                                <CTableDataCell>{source.sourceFile}</CTableDataCell>
+                                <CTableDataCell>
+                                  {[
+                                    source.sourcePage ? `p.${source.sourcePage}` : '',
+                                    source.sourceSheet ? `hoja ${source.sourceSheet}` : '',
+                                    source.sourceRow ? `fila ${source.sourceRow}` : '',
+                                    source.sourceCell ? `celda ${source.sourceCell}` : '',
+                                  ]
+                                    .filter(Boolean)
+                                    .join(', ') || '-'}
+                                </CTableDataCell>
+                                <CTableDataCell>
+                                  {Math.round((source.confidence || 0) * 100)}%
+                                </CTableDataCell>
+                              </CTableRow>
+                            ))}
+                        </CTableBody>
+                      </CTable>
+                    </CCardBody>
+                  </CCard>
+                </CCol>
+              )}
+
               <CCol xs={12}>
                 <CFormLabel htmlFor="sourceText">Texto extraído o pegado manualmente</CFormLabel>
                 <CFormTextarea
@@ -1291,16 +1588,26 @@ const Licitaciones = () => {
                   onChange={handleChange}
                   placeholder="El texto extraído por backend aparecerá aquí. También puedes pegar manualmente texto copiado desde Mercado Público, bases administrativas o bases técnicas."
                 />
-                <CButton
-                  color="info"
-                  variant="outline"
-                  type="button"
-                  className="mt-2"
-                  onClick={handleAnalyzeDocuments}
-                  disabled={isAnalyzingDocuments}
-                >
-                  Analizar documentos
-                </CButton>
+                <div className="d-flex align-items-center gap-2 flex-wrap mt-2">
+                  <CButton
+                    color="info"
+                    variant="outline"
+                    type="button"
+                    onClick={() => handleAnalyzeDocuments('fill-empty')}
+                    disabled={isAnalyzingDocuments}
+                  >
+                    Reanalizar completando campos vacíos
+                  </CButton>
+                  <CButton
+                    color="warning"
+                    variant="outline"
+                    type="button"
+                    onClick={() => handleAnalyzeDocuments('replace')}
+                    disabled={isAnalyzingDocuments}
+                  >
+                    Reanalizar y reemplazar campos
+                  </CButton>
+                </div>
               </CCol>
 
               <CCol md={3}>
@@ -1323,12 +1630,22 @@ const Licitaciones = () => {
                 />
               </CCol>
 
-              <CCol md={4}>
+              <CCol md={3}>
                 <CFormLabel htmlFor="buyer">Comprador</CFormLabel>
                 <CFormInput
                   id="buyer"
                   name="buyer"
                   value={formData.buyer}
+                  onChange={handleChange}
+                />
+              </CCol>
+
+              <CCol md={3}>
+                <CFormLabel htmlFor="buyerRut">RUT comprador</CFormLabel>
+                <CFormInput
+                  id="buyerRut"
+                  name="buyerRut"
+                  value={formData.buyerRut}
                   onChange={handleChange}
                 />
               </CCol>
@@ -1368,12 +1685,34 @@ const Licitaciones = () => {
               </CCol>
 
               <CCol md={3}>
+                <CFormLabel htmlFor="closingTime">Hora cierre</CFormLabel>
+                <CFormInput
+                  id="closingTime"
+                  name="closingTime"
+                  type="time"
+                  value={formData.closingTime}
+                  onChange={handleChange}
+                />
+              </CCol>
+
+              <CCol md={3}>
                 <CFormLabel htmlFor="openingDate">Apertura</CFormLabel>
                 <CFormInput
                   id="openingDate"
                   name="openingDate"
                   type="date"
                   value={formData.openingDate}
+                  onChange={handleChange}
+                />
+              </CCol>
+
+              <CCol md={3}>
+                <CFormLabel htmlFor="openingTime">Hora apertura</CFormLabel>
+                <CFormInput
+                  id="openingTime"
+                  name="openingTime"
+                  type="time"
+                  value={formData.openingTime}
                   onChange={handleChange}
                 />
               </CCol>
@@ -1390,12 +1729,45 @@ const Licitaciones = () => {
               </CCol>
 
               <CCol md={3}>
+                <CFormLabel htmlFor="adjudicationTime">Hora adjudicación</CFormLabel>
+                <CFormInput
+                  id="adjudicationTime"
+                  name="adjudicationTime"
+                  type="time"
+                  value={formData.adjudicationTime}
+                  onChange={handleChange}
+                />
+              </CCol>
+
+              <CCol md={3}>
                 <CFormLabel htmlFor="contractSignDate">Firma contrato</CFormLabel>
                 <CFormInput
                   id="contractSignDate"
                   name="contractSignDate"
                   type="date"
                   value={formData.contractSignDate}
+                  onChange={handleChange}
+                />
+              </CCol>
+
+              <CCol md={3}>
+                <CFormLabel htmlFor="questionsDeadline">Límite consultas</CFormLabel>
+                <CFormInput
+                  id="questionsDeadline"
+                  name="questionsDeadline"
+                  type="date"
+                  value={formData.questionsDeadline}
+                  onChange={handleChange}
+                />
+              </CCol>
+
+              <CCol md={3}>
+                <CFormLabel htmlFor="answersDate">Fecha respuestas</CFormLabel>
+                <CFormInput
+                  id="answersDate"
+                  name="answersDate"
+                  type="date"
+                  value={formData.answersDate}
                   onChange={handleChange}
                 />
               </CCol>

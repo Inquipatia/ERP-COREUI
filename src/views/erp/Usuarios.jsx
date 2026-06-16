@@ -30,6 +30,7 @@ import {
 import { erpRoles, mockUsers } from '../../data/mockUsers'
 import { createLocalId, STORAGE_KEYS, useLocalStorageState } from '../../utils/storage'
 import { exportListToExcel } from '../../utils/exportListToExcel'
+import { useAuth } from '../../context/AuthContext'
 
 const USERS_STORAGE_KEY = STORAGE_KEYS.users || 'rubik.erp.users'
 
@@ -165,6 +166,8 @@ const getCompletionColor = (percent) => {
 }
 
 const Usuarios = () => {
+  const { hasPermission } = useAuth()
+  const canManageUsers = hasPermission('users.manage')
   const [users, setUsers] = useLocalStorageState(USERS_STORAGE_KEY, mockUsers.map(normalizeUser))
   const [visible, setVisible] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -239,6 +242,11 @@ const Usuarios = () => {
   )
 
   const openCreateModal = () => {
+    if (!canManageUsers) {
+      setMessage('Tu perfil solo permite visualizar usuarios.')
+      return
+    }
+
     setEditingId(null)
     setFormData(emptyUser)
     setError('')
@@ -246,6 +254,11 @@ const Usuarios = () => {
   }
 
   const openEditModal = (user) => {
+    if (!canManageUsers) {
+      setMessage('Tu perfil no permite editar usuarios.')
+      return
+    }
+
     setEditingId(user.id)
     setFormData(normalizeUser(user))
     setError('')
@@ -296,6 +309,11 @@ const Usuarios = () => {
   const handleSubmit = (event) => {
     event.preventDefault()
 
+    if (!canManageUsers) {
+      setError('Tu perfil no permite guardar usuarios.')
+      return
+    }
+
     const validationError = validateUser()
 
     if (validationError) {
@@ -322,11 +340,21 @@ const Usuarios = () => {
   }
 
   const handleDelete = (userId) => {
+    if (!canManageUsers) {
+      setMessage('Tu perfil no permite eliminar usuarios.')
+      return
+    }
+
     setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId))
     setMessage('Usuario eliminado localmente.')
   }
 
   const handleToggleStatus = (user) => {
+    if (!canManageUsers) {
+      setMessage('Tu perfil no permite cambiar estados de usuario.')
+      return
+    }
+
     const nextStatus = user.status === 'Activo' ? 'Inactivo' : 'Activo'
 
     setUsers((currentUsers) =>
@@ -454,9 +482,11 @@ const Usuarios = () => {
               >
                 Exportar listado Excel
               </CButton>
-              <CButton color="primary" type="button" onClick={openCreateModal}>
-                Nuevo usuario
-              </CButton>
+              {canManageUsers && (
+                <CButton color="primary" type="button" onClick={openCreateModal}>
+                  Nuevo usuario
+                </CButton>
+              )}
             </div>
           </CCardHeader>
 
@@ -464,6 +494,13 @@ const Usuarios = () => {
             {message && (
               <CAlert color="success" dismissible onClose={() => setMessage('')}>
                 {message}
+              </CAlert>
+            )}
+
+            {!canManageUsers && (
+              <CAlert color="info">
+                Tu perfil puede revisar usuarios, pero la creación, edición y eliminación requiere
+                permiso users.manage.
               </CAlert>
             )}
 
@@ -590,32 +627,36 @@ const Usuarios = () => {
                         {user.observations}
                       </CTableDataCell>
                       <CTableDataCell className="text-end">
-                        <CButtonGroup size="sm" role="group" aria-label="Acciones de usuario">
-                          <CButton
-                            color="primary"
-                            variant="outline"
-                            type="button"
-                            onClick={() => openEditModal(user)}
-                          >
-                            Editar
-                          </CButton>
-                          <CButton
-                            color="secondary"
-                            variant="outline"
-                            type="button"
-                            onClick={() => handleToggleStatus(user)}
-                          >
-                            {user.status === 'Activo' ? 'Inactivar' : 'Activar'}
-                          </CButton>
-                          <CButton
-                            color="danger"
-                            variant="outline"
-                            type="button"
-                            onClick={() => handleDelete(user.id)}
-                          >
-                            Eliminar
-                          </CButton>
-                        </CButtonGroup>
+                        {canManageUsers ? (
+                          <CButtonGroup size="sm" role="group" aria-label="Acciones de usuario">
+                            <CButton
+                              color="primary"
+                              variant="outline"
+                              type="button"
+                              onClick={() => openEditModal(user)}
+                            >
+                              Editar
+                            </CButton>
+                            <CButton
+                              color="secondary"
+                              variant="outline"
+                              type="button"
+                              onClick={() => handleToggleStatus(user)}
+                            >
+                              {user.status === 'Activo' ? 'Inactivar' : 'Activar'}
+                            </CButton>
+                            <CButton
+                              color="danger"
+                              variant="outline"
+                              type="button"
+                              onClick={() => handleDelete(user.id)}
+                            >
+                              Eliminar
+                            </CButton>
+                          </CButtonGroup>
+                        ) : (
+                          <CBadge color="secondary">Solo lectura</CBadge>
+                        )}
                       </CTableDataCell>
                     </CTableRow>
                   )
