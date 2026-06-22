@@ -19,32 +19,48 @@ const { attachUser, requireAuth } = require('./middleware/authMiddleware')
 const PORT = process.env.PORT || process.env.API_PORT || 4300
 const BUILD_DIR = path.join(__dirname, '..', 'build')
 const INDEX_HTML = path.join(BUILD_DIR, 'index.html')
-const ALLOWED_ORIGINS = new Set(
-  [
-    'https://erp.rubikcreaciones.com',
-    process.env.FRONTEND_ORIGIN,
-    process.env.VITE_RUBIK_API_URL?.replace(/\/api\/?$/, ''),
-  ].filter(Boolean),
-)
+const parseOrigins = (value = '') =>
+  String(value)
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+
+const allowedOrigins = [
+  ...parseOrigins(process.env.CORS_ORIGIN),
+  process.env.FRONTEND_ORIGIN,
+  'https://erp.rubikcreaciones.com',
+  'http://localhost:5173',
+  'http://localhost:4300',
+].filter(Boolean)
+
+const corsOptions = {
+  origin(origin, callback) {
+    const isLocalDevelopmentOrigin = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin || '')
+
+    if (!origin || allowedOrigins.includes(origin) || isLocalDevelopmentOrigin) {
+      callback(null, true)
+      return
+    }
+
+    callback(new Error(`CORS blocked: ${origin}`))
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-User-Id',
+    'X-User-Name',
+    'X-User-Email',
+    'X-User-Role',
+    'X-User-Permissions',
+  ],
+  credentials: true,
+}
 
 const app = express()
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (
-        !origin ||
-        ALLOWED_ORIGINS.has(origin) ||
-        /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
-      ) {
-        callback(null, true)
-        return
-      }
-
-      callback(new Error('Origen no permitido por CORS.'))
-    },
-  }),
-)
+app.use(cors(corsOptions))
+app.options(/.*/, cors(corsOptions))
 
 app.use(express.json({ limit: '25mb' }))
 app.use(attachUser)
