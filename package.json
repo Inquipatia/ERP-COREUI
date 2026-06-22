@@ -19,6 +19,7 @@
     "db:migrate": "prisma migrate dev --name init",
     "db:migrate-json": "node server/services/jsonToPostgresMigration.js",
     "db:studio": "prisma studio",
+    "dev": "vite",
     "lint": "eslint",
     "mobile:start": "npm --prefix mobile/rubik-mobile start",
     "pdf-server": "node server/exportPdf.js",
@@ -26,7 +27,7 @@
     "prisma:migrate": "prisma migrate dev --schema server/prisma/schema.prisma",
     "prisma:studio": "prisma studio --schema server/prisma/schema.prisma",
     "serve": "vite preview",
-    "start": "vite",
+    "start": "node server/apiServer.js",
     "tender-server": "node server/tenderAnalyzerServer.js"
   },
   "dependencies": {

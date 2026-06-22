@@ -30,6 +30,7 @@ const Login = () => {
   const [email, setEmail] = useState('rsepulveda@rubikcreaciones.cl')
   const [password, setPassword] = useState('123456')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const requestedPath = location.state?.from?.pathname
 
@@ -39,18 +40,25 @@ const Login = () => {
     }
   }, [currentUser, navigate, requestedPath])
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
-
-    const result = login({ email, password })
-
-    if (!result.ok) {
-      setError(result.error)
-      return
-    }
-
+    setIsSubmitting(true)
     setError('')
-    navigate(requestedPath || getDefaultRouteForUser(result.user), { replace: true })
+
+    try {
+      const result = await login({ email, password })
+
+      if (!result.ok) {
+        setError(result.error)
+        return
+      }
+
+      navigate(requestedPath || getDefaultRouteForUser(result.user), { replace: true })
+    } catch (loginError) {
+      setError(loginError.message || 'No se pudo iniciar sesion.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -111,8 +119,8 @@ const Login = () => {
                       />
                     </CInputGroup>
 
-                    <CButton color="primary" type="submit" className="w-100">
-                      Iniciar sesión
+                    <CButton color="primary" type="submit" className="w-100" disabled={isSubmitting}>
+                      {isSubmitting ? 'Iniciando sesion...' : 'Iniciar sesión'}
                     </CButton>
                   </CForm>
                 </CCardBody>

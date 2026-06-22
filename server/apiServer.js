@@ -1,5 +1,7 @@
 const cors = require('cors')
 const express = require('express')
+const fs = require('node:fs')
+const path = require('node:path')
 require('dotenv').config({ quiet: true })
 const authRoutes = require('./routes/authRoutes')
 const dashboardRoutes = require('./routes/dashboardRoutes')
@@ -14,14 +16,27 @@ const userRoutes = require('./routes/userRoutes')
 const devRoutes = require('./routes/devRoutes')
 const { attachUser, requireAuth } = require('./middleware/authMiddleware')
 
-const PORT = Number(process.env.API_PORT || 4300)
+const PORT = process.env.PORT || process.env.API_PORT || 4300
+const BUILD_DIR = path.join(__dirname, '..', 'build')
+const INDEX_HTML = path.join(BUILD_DIR, 'index.html')
+const ALLOWED_ORIGINS = new Set(
+  [
+    'https://erp.rubikcreaciones.com',
+    process.env.FRONTEND_ORIGIN,
+    process.env.VITE_RUBIK_API_URL?.replace(/\/api\/?$/, ''),
+  ].filter(Boolean),
+)
 
 const app = express()
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+      if (
+        !origin ||
+        ALLOWED_ORIGINS.has(origin) ||
+        /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
+      ) {
         callback(null, true)
         return
       }
@@ -33,10 +48,6 @@ app.use(
 
 app.use(express.json({ limit: '25mb' }))
 app.use(attachUser)
-
-app.get('/', (_request, response) => {
-  response.send('Rubik ERP API server running. Use GET /health or /api/* endpoints.')
-})
 
 app.get('/health', (_request, response) => {
   const usingPostgres = process.env.RUBIK_DATA_ADAPTER === 'postgres'
@@ -65,6 +76,27 @@ app.use('/api/finance', financeRoutes)
 app.use('/api/suppliers', supplierRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/dev', devRoutes)
+
+app.use('/api', (_request, response) => {
+  response.status(404).json({ error: 'API route not found' })
+})
+
+if (fs.existsSync(INDEX_HTML)) {
+  app.use(express.static(BUILD_DIR))
+
+  app.use((request, response, next) => {
+    if (request.path.startsWith('/api')) {
+      next()
+      return
+    }
+
+    response.sendFile(INDEX_HTML)
+  })
+} else {
+  app.get('/', (_request, response) => {
+    response.send('Rubik ERP API server running. Build frontend with npm run build.')
+  })
+}
 
 app.use((request, response) => {
   response.status(404).json({ error: `Ruta no encontrada: ${request.method} ${request.path}` })

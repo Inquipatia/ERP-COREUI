@@ -1,4 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_RUBIK_API_URL || 'http://localhost:4300/api'
+const API_BASE_URL =
+  import.meta.env.VITE_RUBIK_API_URL ||
+  (import.meta.env.PROD ? '/api' : 'http://localhost:4300/api')
+
 const API_SESSION_KEY = 'rubik.erp.apiSession'
 const CURRENT_USER_KEY = 'rubik.erp.currentUser'
 const TEMP_DEV_PASSWORD = '123456'
@@ -21,38 +24,102 @@ const writeJsonStorage = (key, value) => {
   window.localStorage.setItem(key, JSON.stringify(value))
 }
 
+const removeStorage = (key) => {
+  if (!canUseLocalStorage()) return
+  window.localStorage.removeItem(key)
+}
+
 const getStoredApiSession = () => readJsonStorage(API_SESSION_KEY, null)
 
-export const getCurrentWebUser = () => readJsonStorage(CURRENT_USER_KEY, null)
+const buildUrl = (endpoint = '') => {
+  if (String(endpoint).startsWith('http')) return endpoint
+
+  const normalizedBaseUrl = API_BASE_URL.replace(/\/$/, '')
+  const normalizedEndpoint = String(endpoint).startsWith('/') ? endpoint : `/${endpoint}`
+  return `${normalizedBaseUrl}${normalizedEndpoint}`
+}
+
+const parseResponsePayload = async (response) => {
+  if (response.status === 204) return null
+
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    return response.json().catch(() => null)
+  }
+
+  return response.text().catch(() => null)
+}
+
+const normalizeRequestBody = (body) => {
+  if (body === undefined || body === null) return undefined
+  if (typeof FormData !== 'undefined' && body instanceof FormData) return body
+  if (typeof body === 'string') return body
+  return JSON.stringify(body)
+}
+
+const isFormDataBody = (body) => typeof FormData !== 'undefined' && body instanceof FormData
 
 export const getApiBaseUrl = () => API_BASE_URL
 
-export const clearApiSession = () => {
-  if (!canUseLocalStorage()) return
-  window.localStorage.removeItem(API_SESSION_KEY)
+export const getCurrentWebUser = () => readJsonStorage(CURRENT_USER_KEY, null)
+
+export const setApiSession = (session) => {
+  writeJsonStorage(API_SESSION_KEY, session)
+  return session
 }
+
+export const clearApiSession = () => {
+  removeStorage(API_SESSION_KEY)
+}
+
+export const post = async (endpoint, data, options = {}) =>
+  apiRequest(endpoint, {
+    ...options,
+    method: 'POST',
+    body: data,
+  })
+
+export const get = async (endpoint, options = {}) =>
+  apiRequest(endpoint, {
+    ...options,
+    method: 'GET',
+  })
+
+export const put = async (endpoint, data, options = {}) =>
+  apiRequest(endpoint, {
+    ...options,
+    method: 'PUT',
+    body: data,
+  })
+
+export const patch = async (endpoint, data, options = {}) =>
+  apiRequest(endpoint, {
+    ...options,
+    method: 'PATCH',
+    body: data,
+  })
+
+export const remove = async (endpoint, options = {}) =>
+  apiRequest(endpoint, {
+    ...options,
+    method: 'DELETE',
+  })
 
 export const loginToApi = async (currentUser = getCurrentWebUser()) => {
   if (!currentUser?.email) {
     throw new Error('No hay usuario local para iniciar sesion API.')
   }
 
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const payload = await post(
+    '/auth/login',
+    {
       email: currentUser.email,
       password: currentUser.password || TEMP_DEV_PASSWORD,
-    }),
-  })
+    },
+    { auth: false },
+  )
 
-  const payload = await response.json().catch(() => null)
-
-  if (!response.ok) {
-    throw new Error(payload?.error || 'No se pudo iniciar sesion API.')
-  }
-
-  writeJsonStorage(API_SESSION_KEY, payload)
+  setApiSession(payload)
   return payload
 }
 
@@ -72,27 +139,36 @@ const ensureApiSession = async () => {
   return loginToApi(currentUser)
 }
 
-export const apiRequest = async (endpoint, options = {}) => {
-  const session = await ensureApiSession()
+export async function apiRequest(endpoint, options = {}) {
+  const {
+    auth = true,
+    retrying = false,
+    headers = {},
+    body,
+    ...fetchOptions
+  } = options
+  const requestBody = normalizeRequestBody(body)
+  const session = auth ? await ensureApiSession() : null
+  const requestHeaders = {
+    ...(isFormDataBody(body) ? {} : { 'Content-Type': 'application/json' }),
+    ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
+    ...headers,
+  }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.token}`,
-      ...(options.headers || {}),
-    },
+  const response = await fetch(buildUrl(endpoint), {
+    ...fetchOptions,
+    headers: requestHeaders,
+    body: requestBody,
   })
+  const payload = await parseResponsePayload(response)
 
-  const payload = await response.json().catch(() => null)
-
-  if (response.status === 401 && !options.retrying) {
+  if (response.status === 401 && auth && !retrying) {
     clearApiSession()
     return apiRequest(endpoint, { ...options, retrying: true })
   }
 
   if (!response.ok) {
-    throw new Error(payload?.error || `Error API ${response.status}`)
+    throw new Error(payload?.error || payload || `Error API ${response.status}`)
   }
 
   return payload
@@ -106,26 +182,15 @@ const getCollectionEndpoint = (resource) => {
 
 export const apiCollections = {
   list: async (resource) => {
-    const payload = await apiRequest(getCollectionEndpoint(resource))
+    const payload = await get(getCollectionEndpoint(resource))
     return Array.isArray(payload?.items) ? payload.items : []
   },
 
-  create: (resource, item) =>
-    apiRequest(getCollectionEndpoint(resource), {
-      method: 'POST',
-      body: JSON.stringify(item),
-    }),
+  create: (resource, item) => post(getCollectionEndpoint(resource), item),
 
-  update: (resource, id, item) =>
-    apiRequest(`${getCollectionEndpoint(resource)}/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(item),
-    }),
+  update: (resource, id, item) => put(`${getCollectionEndpoint(resource)}/${id}`, item),
 
-  remove: (resource, id) =>
-    apiRequest(`${getCollectionEndpoint(resource)}/${id}`, {
-      method: 'DELETE',
-    }),
+  remove: (resource, id) => remove(`${getCollectionEndpoint(resource)}/${id}`),
 }
 
 export const importBrowserLocalStorageToApi = async () => {
@@ -140,10 +205,33 @@ export const importBrowserLocalStorageToApi = async () => {
     localStorageDump[key] = window.localStorage.getItem(key)
   }
 
-  return apiRequest('/dev/import-local-storage', {
-    method: 'POST',
-    body: JSON.stringify({ localStorage: localStorageDump }),
-  })
+  return post('/dev/import-local-storage', { localStorage: localStorageDump })
 }
 
-export const getApiStatus = () => apiRequest('/dev/status')
+export const getApiStatus = () => get('/dev/status', { auth: false })
+
+const toAxiosResponse = async (requestPromise) => ({ data: await requestPromise })
+
+export const axios = {
+  get: (endpoint, config = {}) =>
+    toAxiosResponse(get(endpoint, { headers: config.headers, auth: config.auth })),
+  post: (endpoint, data, config = {}) =>
+    toAxiosResponse(post(endpoint, data, { headers: config.headers, auth: config.auth })),
+  put: (endpoint, data, config = {}) =>
+    toAxiosResponse(put(endpoint, data, { headers: config.headers, auth: config.auth })),
+  patch: (endpoint, data, config = {}) =>
+    toAxiosResponse(patch(endpoint, data, { headers: config.headers, auth: config.auth })),
+  delete: (endpoint, config = {}) =>
+    toAxiosResponse(remove(endpoint, { headers: config.headers, auth: config.auth })),
+}
+
+const apiClient = {
+  get,
+  post,
+  put,
+  patch,
+  delete: remove,
+  axios,
+}
+
+export default apiClient

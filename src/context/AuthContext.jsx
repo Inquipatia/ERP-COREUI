@@ -4,9 +4,10 @@ import {
   clearCurrentUser,
   getCurrentUser,
   getDefaultRouteForUser,
-  loginWithCredentials,
+  setCurrentUser,
   userHasPermission,
 } from '../utils/authStorage'
+import { clearApiSession, post as apiPost, setApiSession } from '../services/apiClient'
 
 const AuthContext = createContext(null)
 
@@ -17,17 +18,24 @@ export const AuthProvider = ({ children }) => {
     () => ({
       currentUser,
       isAuthenticated: Boolean(currentUser),
-      login: ({ email, password }) => {
-        const result = loginWithCredentials({ email, password })
+      login: async ({ email, password }) => {
+        try {
+          const session = await apiPost('/auth/login', { email, password }, { auth: false })
+          const sessionUser = setCurrentUser(session.user)
+          setApiSession(session)
+          setCurrentUserState(sessionUser)
 
-        if (result.ok) {
-          setCurrentUserState(result.user)
+          return { ok: true, user: sessionUser }
+        } catch (error) {
+          return {
+            ok: false,
+            error: error.message || 'No se pudo iniciar sesion.',
+          }
         }
-
-        return result
       },
       logout: () => {
         clearCurrentUser()
+        clearApiSession()
         setCurrentUserState(null)
       },
       hasPermission: (permission) => userHasPermission(currentUser, permission),

@@ -4,7 +4,7 @@ const { requireAuth } = require('../middleware/authMiddleware')
 
 const router = express.Router()
 
-router.get('/status', requireAuth, async (_request, response, next) => {
+router.get('/status', async (_request, response, next) => {
   try {
     response.json({
       status: 'ok',
