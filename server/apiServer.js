@@ -19,10 +19,11 @@ const { attachUser, requireAuth } = require('./middleware/authMiddleware')
 const PORT = process.env.PORT || process.env.API_PORT || 4300
 const BUILD_DIR = path.join(__dirname, '..', 'build')
 const INDEX_HTML = path.join(BUILD_DIR, 'index.html')
+const normalizeOrigin = (origin = '') => String(origin).trim().replace(/\/+$/, '')
 const parseOrigins = (value = '') =>
   String(value)
     .split(',')
-    .map((origin) => origin.trim())
+    .map(normalizeOrigin)
     .filter(Boolean)
 
 const allowedOrigins = [
@@ -31,18 +32,21 @@ const allowedOrigins = [
   'https://erp.rubikcreaciones.com',
   'http://localhost:5173',
   'http://localhost:4300',
-].filter(Boolean)
+]
+  .map(normalizeOrigin)
+  .filter(Boolean)
 
 const corsOptions = {
   origin(origin, callback) {
-    const isLocalDevelopmentOrigin = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin || '')
+    const normalizedOrigin = normalizeOrigin(origin)
+    const isLocalDevelopmentOrigin = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(normalizedOrigin)
 
-    if (!origin || allowedOrigins.includes(origin) || isLocalDevelopmentOrigin) {
+    if (!origin || allowedOrigins.includes(normalizedOrigin) || isLocalDevelopmentOrigin) {
       callback(null, true)
       return
     }
 
-    callback(new Error(`CORS blocked: ${origin}`))
+    callback(new Error(`CORS blocked: ${normalizedOrigin}`))
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [

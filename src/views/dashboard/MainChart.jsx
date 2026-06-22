@@ -10,16 +10,21 @@ const MainChart = () => {
     const handleColorSchemeChange = () => {
       if (chartRef.current) {
         setTimeout(() => {
-          chartRef.current.options.scales.x.grid.borderColor = getStyle(
+          const scales = chartRef.current?.options?.scales
+          if (!scales?.x?.grid || !scales?.x?.ticks || !scales?.y?.grid || !scales?.y?.ticks) {
+            return
+          }
+
+          scales.x.grid.borderColor = getStyle(
             '--cui-border-color-translucent',
           )
-          chartRef.current.options.scales.x.grid.color = getStyle('--cui-border-color-translucent')
-          chartRef.current.options.scales.x.ticks.color = getStyle('--cui-body-color')
-          chartRef.current.options.scales.y.grid.borderColor = getStyle(
+          scales.x.grid.color = getStyle('--cui-border-color-translucent')
+          scales.x.ticks.color = getStyle('--cui-body-color')
+          scales.y.grid.borderColor = getStyle(
             '--cui-border-color-translucent',
           )
-          chartRef.current.options.scales.y.grid.color = getStyle('--cui-border-color-translucent')
-          chartRef.current.options.scales.y.ticks.color = getStyle('--cui-body-color')
+          scales.y.grid.color = getStyle('--cui-border-color-translucent')
+          scales.y.ticks.color = getStyle('--cui-body-color')
           chartRef.current.update()
         })
       }

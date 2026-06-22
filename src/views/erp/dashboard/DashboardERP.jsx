@@ -223,16 +223,21 @@ const isTenderClosingSoon = (tender) => {
 }
 
 const toDoughnutData = (entries, label) => ({
-  labels: entries.map(([key]) => key),
+  labels: (Array.isArray(entries) ? entries : []).map(([key]) => key || 'Sin clasificar'),
   datasets: [
     {
-      backgroundColor: entries.map((_, index) => CHART_COLORS[index % CHART_COLORS.length]),
+      backgroundColor: (Array.isArray(entries) ? entries : []).map((_, index) => CHART_COLORS[index % CHART_COLORS.length]),
       borderColor: '#0f172a',
-      data: entries.map(([, value]) => value),
+      data: (Array.isArray(entries) ? entries : []).map(([, value]) => getNumberValue(value)),
       label,
     },
   ],
 })
+
+const hasChartEntries = (entries) =>
+  Array.isArray(entries) && entries.some(([, value]) => getNumberValue(value) > 0)
+
+const toNumericSeries = (values) => (Array.isArray(values) ? values : []).map(getNumberValue)
 
 const KpiCard = ({ label, value, helper, color = '#3b82f6', dark = false }) => (
   <CCard className="h-100" style={dark ? styles.darkCard : styles.lightCard}>
@@ -575,13 +580,13 @@ const DashboardERP = () => {
                         label: 'Ingresos',
                         backgroundColor: '#16a34a',
                         borderRadius: 10,
-                        data: dashboardData.monthlyIncome,
+                        data: toNumericSeries(dashboardData.monthlyIncome),
                       },
                       {
                         label: 'Egresos',
                         backgroundColor: '#dc2626',
                         borderRadius: 10,
-                        data: dashboardData.monthlyExpenses,
+                        data: toNumericSeries(dashboardData.monthlyExpenses),
                       },
                     ],
                   }}
@@ -604,7 +609,7 @@ const DashboardERP = () => {
                         label: 'Actividad',
                         backgroundColor: 'rgba(59,130,246,0.16)',
                         borderColor: '#3b82f6',
-                        data: dashboardData.monthlyActivity,
+                        data: toNumericSeries(dashboardData.monthlyActivity),
                         fill: true,
                         tension: 0.38,
                       },
@@ -661,23 +666,27 @@ const DashboardERP = () => {
             <CCardBody>
               <h5 className="fw-bold mb-1">Ordenes por etapa</h5>
               <div className="text-body-secondary small mb-4">Bar chart de flujo operativo</div>
-              <CChartBar
-                data={{
-                  labels: dashboardData.workOrdersByStatus.map(([status]) => status),
-                  datasets: [
-                    {
-                      backgroundColor: '#7c3aed',
-                      borderRadius: 8,
-                      data: dashboardData.workOrdersByStatus.map(([, count]) => count),
-                      label: 'Ordenes',
-                    },
-                  ],
-                }}
-                options={{
-                  plugins: { legend: { display: false } },
-                  scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
-                }}
-              />
+              {hasChartEntries(dashboardData.workOrdersByStatus) ? (
+                <CChartBar
+                  data={{
+                    labels: dashboardData.workOrdersByStatus.map(([status]) => status || 'Sin estado'),
+                    datasets: [
+                      {
+                        backgroundColor: '#7c3aed',
+                        borderRadius: 8,
+                        data: dashboardData.workOrdersByStatus.map(([, count]) => getNumberValue(count)),
+                        label: 'Ordenes',
+                      },
+                    ],
+                  }}
+                  options={{
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false } } },
+                  }}
+                />
+              ) : (
+                <CAlert color="info">Sin ordenes para graficar.</CAlert>
+              )}
             </CCardBody>
           </CCard>
         </CCol>
@@ -687,10 +696,14 @@ const DashboardERP = () => {
             <CCardBody>
               <h5 className="fw-bold mb-1">Riesgo licitaciones</h5>
               <div className="text-body-secondary small mb-4">Priorizacion de postulacion</div>
-              <CChartDoughnut
-                data={toDoughnutData(dashboardData.tendersByRisk, 'Licitaciones')}
-                options={{ plugins: { legend: { position: 'bottom' } } }}
-              />
+              {hasChartEntries(dashboardData.tendersByRisk) ? (
+                <CChartDoughnut
+                  data={toDoughnutData(dashboardData.tendersByRisk, 'Licitaciones')}
+                  options={{ plugins: { legend: { position: 'bottom' } } }}
+                />
+              ) : (
+                <CAlert color="info">Sin licitaciones para graficar.</CAlert>
+              )}
             </CCardBody>
           </CCard>
         </CCol>
@@ -722,7 +735,7 @@ const DashboardERP = () => {
                           label: 'Ingresos',
                           backgroundColor: 'rgba(22,163,74,0.16)',
                           borderColor: '#16a34a',
-                          data: dashboardData.monthlyIncome,
+                          data: toNumericSeries(dashboardData.monthlyIncome),
                           fill: true,
                           tension: 0.38,
                         },
@@ -730,9 +743,9 @@ const DashboardERP = () => {
                           label: 'Actividad',
                           backgroundColor: 'rgba(59,130,246,0.08)',
                           borderColor: '#3b82f6',
-                          data: dashboardData.monthlyActivity,
+                          data: toNumericSeries(dashboardData.monthlyActivity),
                           tension: 0.38,
-                          yAxisID: 'activity',
+                          yAxisID: 'y1',
                         },
                       ]
                     : [
@@ -740,7 +753,7 @@ const DashboardERP = () => {
                           label: 'Actividad',
                           backgroundColor: 'rgba(59,130,246,0.16)',
                           borderColor: '#3b82f6',
-                          data: dashboardData.monthlyActivity,
+                          data: toNumericSeries(dashboardData.monthlyActivity),
                           fill: true,
                           tension: 0.38,
                         },
@@ -751,7 +764,7 @@ const DashboardERP = () => {
                   plugins: { legend: { position: 'bottom' } },
                   scales: {
                     y: { beginAtZero: true, grid: { color: 'rgba(148,163,184,0.18)' } },
-                    activity: { beginAtZero: true, display: false },
+                    y1: { axis: 'y', beginAtZero: true, display: false, grid: { drawOnChartArea: false }, type: 'linear' },
                     x: { grid: { display: false } },
                   },
                 }}

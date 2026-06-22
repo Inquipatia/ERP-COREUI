@@ -1,6 +1,6 @@
 const API_BASE_URL =
   import.meta.env.VITE_RUBIK_API_URL ||
-  (import.meta.env.PROD ? 'https://api.rubikcreaciones.com/api' : 'http://localhost:4300/api')
+  (import.meta.env.PROD ? '/api' : 'http://localhost:4300/api')
 
 const API_SESSION_KEY = 'rubik.erp.apiSession'
 const CURRENT_USER_KEY = 'rubik.erp.currentUser'
