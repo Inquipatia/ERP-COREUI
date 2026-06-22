@@ -88,6 +88,51 @@ const _nav = [
   },
   {
     component: CNavGroup,
+    name: 'Administracion',
+    to: '/erp/administracion',
+    permission: 'finance.view',
+    icon: <CIcon icon={cilCalculator} customClassName="nav-icon" />,
+    items: [
+      {
+        component: CNavItem,
+        name: 'Finanzas',
+        to: '/erp/administracion/finanzas',
+        permission: 'finance.view',
+      },
+      {
+        component: CNavItem,
+        name: 'Pagos',
+        to: '/erp/administracion/pagos',
+        permission: 'finance.view',
+      },
+      {
+        component: CNavItem,
+        name: 'Cuentas por cobrar',
+        to: '/erp/administracion/cuentas-por-cobrar',
+        permission: 'finance.view',
+      },
+      {
+        component: CNavItem,
+        name: 'Cuentas por pagar',
+        to: '/erp/administracion/cuentas-por-pagar',
+        permission: 'finance.view',
+      },
+      {
+        component: CNavItem,
+        name: 'Proveedores',
+        to: '/erp/administracion/proveedores',
+        permission: 'suppliers.view',
+      },
+      {
+        component: CNavItem,
+        name: 'Gastos',
+        to: '/erp/administracion/gastos',
+        permission: 'expenses.view',
+      },
+    ],
+  },
+  {
+    component: CNavGroup,
     name: 'Cotizador 5000',
     icon: <CIcon icon={cilCalculator} customClassName="nav-icon" />,
     items: [

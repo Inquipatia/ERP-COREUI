@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CAlert,
   CBadge,
@@ -233,7 +233,7 @@ const NuevaCotizacion = () => {
     mockProducts.map(normalizeProduct),
   )
   const [storedQuotes, setStoredQuotes] = useLocalStorageState(STORAGE_KEYS.quotes, [])
-  const [, setStoredDocuments] = useDocumentStorage()
+  const [storedDocuments, setStoredDocuments] = useDocumentStorage()
   const [commercialSettings] = useLocalStorageState(
     STORAGE_KEYS.commercialSettings,
     normalizeCommercialSettings(rubikCommercialSettings),
@@ -255,6 +255,31 @@ const NuevaCotizacion = () => {
   const [saveMessage, setSaveMessage] = useState('')
   const [isExportingExcel, setIsExportingExcel] = useState(false)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
+
+  useEffect(() => {
+    const nextQuoteNumber = String(getNextQuoteNumber(storedQuotes, storedDocuments))
+
+    setQuoteData((currentQuoteData) => {
+      const currentQuoteNumber = Number(currentQuoteData.quoteNumber)
+      const nextQuoteNumberValue = Number(nextQuoteNumber)
+      const quoteNumberAlreadyExists = storedQuotes
+        .map(normalizeQuoteRecord)
+        .some((quote) => quote.quoteNumber === String(currentQuoteData.quoteNumber))
+
+      if (
+        !currentQuoteData.quoteNumber ||
+        quoteNumberAlreadyExists ||
+        currentQuoteNumber < nextQuoteNumberValue
+      ) {
+        return {
+          ...currentQuoteData,
+          quoteNumber: nextQuoteNumber,
+        }
+      }
+
+      return currentQuoteData
+    })
+  }, [storedDocuments, storedQuotes])
 
   const sellerOptions = useMemo(() => {
     if (!currentUser?.email) {

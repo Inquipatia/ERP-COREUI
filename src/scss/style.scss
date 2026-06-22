@@ -8,6 +8,22 @@ body {
   background-color: var(--cui-tertiary-bg);
 }
 
+.card-body > .table-responsive,
+.modal-body > .table-responsive {
+  max-height: min(68vh, 720px);
+  overflow: auto;
+}
+
+.table-responsive {
+  scrollbar-gutter: stable;
+}
+
+.table-responsive thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
 .wrapper {
   width: 100%;
   padding-inline: var(--cui-sidebar-occupy-start, 0) var(--cui-sidebar-occupy-end, 0);

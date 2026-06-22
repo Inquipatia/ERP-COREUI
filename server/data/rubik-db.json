@@ -1,0 +1,1808 @@
+{
+  "users": [
+    {
+      "id": "usr-rodrigo-sepulveda",
+      "name": "Rodrigo Sepulveda",
+      "email": "rsepulveda@rubikcreaciones.cl",
+      "role": "Jefe de ventas",
+      "area": "Ventas",
+      "status": "Activo",
+      "position": "Jefe de ventas",
+      "permissions": [
+        "dashboard.view",
+        "clients.view",
+        "clients.manage",
+        "quotes.view",
+        "quotes.create",
+        "quotes.edit",
+        "documents.view",
+        "documents.manage",
+        "tenders.view",
+        "workorders.view",
+        "workorders.create",
+        "ai.chat"
+      ],
+      "password": "123456"
+    },
+    {
+      "id": "usr-erick-cabrera",
+      "name": "Erick Cabrera",
+      "email": "erick@rubikcreaciones.cl",
+      "role": "Ejecutivo venta publica",
+      "area": "Licitaciones",
+      "status": "Activo",
+      "position": "Ejecutivo venta publica",
+      "permissions": [
+        "dashboard.view",
+        "clients.view",
+        "clients.manage",
+        "quotes.view",
+        "quotes.create",
+        "quotes.edit",
+        "documents.view",
+        "documents.manage",
+        "tenders.view",
+        "workorders.view",
+        "workorders.create",
+        "ai.chat"
+      ],
+      "password": "123456"
+    },
+    {
+      "id": "usr-ramon-rojas",
+      "name": "Ramon Rojas",
+      "email": "r.rojas@rubikcreaciones.cl",
+      "role": "Gerencia/Admin",
+      "area": "Gerencia/Finanzas",
+      "status": "Activo",
+      "position": "Gerencia/Admin",
+      "permissions": [
+        "admin.all",
+        "dashboard.view",
+        "clients.view",
+        "clients.manage",
+        "quotes.view",
+        "quotes.create",
+        "quotes.edit",
+        "documents.view",
+        "documents.manage",
+        "tenders.view",
+        "workorders.view",
+        "workorders.create",
+        "finance.view",
+        "finance.manage",
+        "finance.payments",
+        "suppliers.view",
+        "suppliers.manage",
+        "ai.chat"
+      ],
+      "password": "123456"
+    },
+    {
+      "id": "usr-christian-guzman",
+      "name": "Christian Guzman",
+      "email": "c.guzman@rubikcreaciones.cl",
+      "role": "Jefe venta privada",
+      "area": "Ventas/Finanzas",
+      "status": "Activo",
+      "position": "Jefe venta privada",
+      "permissions": [
+        "dashboard.view",
+        "clients.view",
+        "clients.manage",
+        "quotes.view",
+        "quotes.create",
+        "quotes.edit",
+        "documents.view",
+        "documents.manage",
+        "tenders.view",
+        "workorders.view",
+        "workorders.create",
+        "ai.chat"
+      ],
+      "password": "123456"
+    },
+    {
+      "id": "usr-ignacio-martinez",
+      "name": "Ignacio Martinez",
+      "email": "Ignacio.m@rubikcreaciones.cl",
+      "role": "Jefe de taller",
+      "area": "Produccion/Taller",
+      "status": "Activo",
+      "position": "Jefe de taller",
+      "permissions": [
+        "dashboard.view",
+        "documents.view",
+        "workorders.view",
+        "workorders.create",
+        "ai.chat"
+      ],
+      "password": "123456"
+    },
+    {
+      "id": "usr-benjamin-rojas",
+      "name": "Benjamin Rojas",
+      "email": "brojas.romero@rubikcreaciones.cl",
+      "role": "Gerencia/Admin",
+      "area": "Gerencia",
+      "status": "Activo",
+      "position": "Gerencia/Admin",
+      "permissions": [
+        "admin.all",
+        "dashboard.view",
+        "clients.view",
+        "clients.manage",
+        "quotes.view",
+        "quotes.create",
+        "quotes.edit",
+        "documents.view",
+        "documents.manage",
+        "tenders.view",
+        "workorders.view",
+        "workorders.create",
+        "finance.view",
+        "finance.manage",
+        "finance.payments",
+        "suppliers.view",
+        "suppliers.manage",
+        "ai.chat"
+      ],
+      "password": "123456"
+    },
+    {
+      "id": "usr-ivone-romero",
+      "name": "Ivone Romero",
+      "email": "contacto@rubikcreaciones.cl",
+      "role": "Gerencia/Admin",
+      "area": "Gerencia/Finanzas",
+      "status": "Activo",
+      "position": "Gerencia/Admin",
+      "permissions": [
+        "admin.all",
+        "dashboard.view",
+        "clients.view",
+        "clients.manage",
+        "quotes.view",
+        "quotes.create",
+        "quotes.edit",
+        "documents.view",
+        "documents.manage",
+        "tenders.view",
+        "workorders.view",
+        "workorders.create",
+        "finance.view",
+        "finance.manage",
+        "finance.payments",
+        "suppliers.view",
+        "suppliers.manage",
+        "ai.chat"
+      ],
+      "password": "123456"
+    },
+    {
+      "id": "usr-mathias-olavarria",
+      "name": "Mathias Olavarria",
+      "email": "m.olavarria@rubikcreaciones.cl",
+      "role": "Diseno y publicidad",
+      "area": "Diseno/Marketing",
+      "status": "Activo",
+      "position": "Diseno y publicidad",
+      "permissions": [
+        "dashboard.view",
+        "documents.view",
+        "workorders.view",
+        "ai.chat"
+      ],
+      "password": "123456"
+    },
+    {
+      "id": "usr-jorge-gutierrez",
+      "name": "Jorge Gutierrez",
+      "email": "jgutierrez@rubikcreaciones.cl",
+      "role": "Disenador imprenta",
+      "area": "Diseno/Imprenta",
+      "status": "Activo",
+      "position": "Disenador imprenta",
+      "permissions": [
+        "dashboard.view",
+        "documents.view",
+        "workorders.view",
+        "ai.chat"
+      ],
+      "password": "123456"
+    }
+  ],
+  "clients": [
+    {
+      "id": "cli-1782134959872-fem3e7",
+      "contact": "redeed",
+      "company": "red",
+      "rut": "269876636",
+      "phone": "2324343",
+      "email": "a@gmail.com",
+      "commune": "San Joaquin",
+      "address": "Av. Industrias",
+      "status": "Activo",
+      "observations": "JJJJJ",
+      "createdAt": "2026-06-22T13:29:19.917Z",
+      "updatedAt": "2026-06-22T13:29:19.917Z"
+    },
+    {
+      "id": "cli-1782134762850-a0bu47",
+      "contact": "Test",
+      "company": "Test",
+      "rut": "20147703-4",
+      "phone": "+56977192938",
+      "email": "a@gmail.com",
+      "commune": "San Joaquin",
+      "address": "Av las industrias",
+      "status": "Activo",
+      "observations": "sds",
+      "createdAt": "2026-06-22T13:26:02.931Z",
+      "updatedAt": "2026-06-22T13:26:02.931Z"
+    },
+    {
+      "id": "client-expo-lanas",
+      "contactName": "Maria Gonzalez",
+      "company": "Expo Lanas Chile",
+      "rut": "76.111.111-1",
+      "phone": "+56911111111",
+      "email": "contacto@expolanas.cl",
+      "commune": "Santiago",
+      "address": "Santiago",
+      "status": "Activo",
+      "observations": ""
+    },
+    {
+      "id": "client-cafe-sur",
+      "contactName": "Valentina Soto",
+      "company": "Cafe Sur SPA",
+      "rut": "77.222.222-2",
+      "phone": "+56922222222",
+      "email": "ventas@cafesur.cl",
+      "commune": "Providencia",
+      "address": "Providencia",
+      "status": "Activo",
+      "observations": ""
+    },
+    {
+      "id": "client-agua-santiago",
+      "contactName": "Diego Herrera",
+      "company": "Fondo de Agua de Santiago",
+      "rut": "65.333.333-3",
+      "phone": "+56933333333",
+      "email": "licitaciones@aguasantiago.cl",
+      "commune": "Las Condes",
+      "address": "Las Condes",
+      "status": "Activo",
+      "observations": ""
+    },
+    {
+      "id": "client-municipalidad-norte",
+      "contactName": "Paula Marin",
+      "company": "Municipalidad Norte",
+      "rut": "69.444.444-4",
+      "phone": "+56944444444",
+      "email": "compras@muninorte.cl",
+      "commune": "Huechuraba",
+      "address": "Huechuraba",
+      "status": "Activo",
+      "observations": ""
+    },
+    {
+      "id": "client-retail-pop",
+      "contactName": "Camila Rivas",
+      "company": "Retail POP Chile",
+      "rut": "76.555.555-5",
+      "phone": "+56955555555",
+      "email": "marketing@retailpop.cl",
+      "commune": "Nunoa",
+      "address": "Nunoa",
+      "status": "Activo",
+      "observations": ""
+    },
+    {
+      "id": "client-feria-industrial",
+      "contactName": "Jorge Araya",
+      "company": "Feria Industrial SPA",
+      "rut": "77.666.666-6",
+      "phone": "+56966666666",
+      "email": "operaciones@feriaindustrial.cl",
+      "commune": "Maipu",
+      "address": "Maipu",
+      "status": "Activo",
+      "observations": ""
+    },
+    {
+      "id": "client-clinica-visual",
+      "contactName": "Daniela Vera",
+      "company": "Clinica Visual",
+      "rut": "76.777.777-7",
+      "phone": "+56977777777",
+      "email": "admin@clinicavisual.cl",
+      "commune": "La Florida",
+      "address": "La Florida",
+      "status": "Activo",
+      "observations": ""
+    },
+    {
+      "id": "client-constructora-andes",
+      "contactName": "Hector Pizarro",
+      "company": "Constructora Andes",
+      "rut": "77.888.888-8",
+      "phone": "+56988888888",
+      "email": "contacto@andes.cl",
+      "commune": "Quilicura",
+      "address": "Quilicura",
+      "status": "Activo",
+      "observations": ""
+    },
+    {
+      "id": "client-universidad-sur",
+      "contactName": "Fernanda Leiva",
+      "company": "Universidad del Sur",
+      "rut": "70.999.999-9",
+      "phone": "+56999999999",
+      "email": "extension@universidadsur.cl",
+      "commune": "Santiago",
+      "address": "Santiago",
+      "status": "Activo",
+      "observations": ""
+    },
+    {
+      "id": "client-eventos-corporativos",
+      "contactName": "Matias Fuentes",
+      "company": "Eventos Corporativos SPA",
+      "rut": "76.101.101-0",
+      "phone": "+56910101010",
+      "email": "produccion@eventoscorp.cl",
+      "commune": "Vitacura",
+      "address": "Vitacura",
+      "status": "Activo",
+      "observations": ""
+    }
+  ],
+  "quotes": [
+    {
+      "id": "quote-8105",
+      "quoteNumber": "8105",
+      "date": "2026-06-11",
+      "client": "Valentina Soto",
+      "company": "Cafe Sur SPA",
+      "seller": "Christian Guzman",
+      "subject": "Vinilo impreso para POP",
+      "condition": "30 dias",
+      "netAmount": 320000,
+      "taxAmount": 60800,
+      "totalAmount": 380800,
+      "status": "Aprobada",
+      "items": [
+        {
+          "quantity": 1,
+          "description": "Vinilo impreso para POP",
+          "unitValue": 320000,
+          "total": 320000
+        }
+      ]
+    },
+    {
+      "id": "quote-8106",
+      "quoteNumber": "8106",
+      "date": "2026-06-12",
+      "client": "Maria Gonzalez",
+      "company": "Expo Lanas Chile",
+      "seller": "Rodrigo Sepulveda",
+      "subject": "Stand modular feria",
+      "condition": "30 dias",
+      "netAmount": 1850000,
+      "taxAmount": 351500,
+      "totalAmount": 2201500,
+      "status": "Emitida",
+      "items": [
+        {
+          "quantity": 1,
+          "description": "Stand modular feria",
+          "unitValue": 1850000,
+          "total": 1850000
+        }
+      ]
+    },
+    {
+      "id": "quote-8107",
+      "quoteNumber": "8107",
+      "date": "2026-06-13",
+      "client": "Diego Herrera",
+      "company": "Fondo de Agua de Santiago",
+      "seller": "Erick Cabrera",
+      "subject": "Arriendo de stands Expo Agua",
+      "condition": "30 dias",
+      "netAmount": 4200000,
+      "taxAmount": 798000,
+      "totalAmount": 4998000,
+      "status": "Borrador",
+      "items": [
+        {
+          "quantity": 1,
+          "description": "Arriendo de stands Expo Agua",
+          "unitValue": 4200000,
+          "total": 4200000
+        }
+      ]
+    },
+    {
+      "id": "quote-8108",
+      "quoteNumber": "8108",
+      "date": "2026-06-14",
+      "client": "Paula Marin",
+      "company": "Municipalidad Norte",
+      "seller": "Erick Cabrera",
+      "subject": "Grafica licitacion municipal",
+      "condition": "30 dias",
+      "netAmount": 980000,
+      "taxAmount": 186200,
+      "totalAmount": 1166200,
+      "status": "Enviada",
+      "items": [
+        {
+          "quantity": 1,
+          "description": "Grafica licitacion municipal",
+          "unitValue": 980000,
+          "total": 980000
+        }
+      ]
+    },
+    {
+      "id": "quote-8109",
+      "quoteNumber": "8109",
+      "date": "2026-06-15",
+      "client": "Camila Rivas",
+      "company": "Retail POP Chile",
+      "seller": "Christian Guzman",
+      "subject": "Campana POP retail",
+      "condition": "30 dias",
+      "netAmount": 1450000,
+      "taxAmount": 275500,
+      "totalAmount": 1725500,
+      "status": "Aprobada",
+      "items": [
+        {
+          "quantity": 1,
+          "description": "Campana POP retail",
+          "unitValue": 1450000,
+          "total": 1450000
+        }
+      ]
+    },
+    {
+      "id": "quote-8110",
+      "quoteNumber": "8110",
+      "date": "2026-06-16",
+      "client": "Jorge Araya",
+      "company": "Feria Industrial SPA",
+      "seller": "Rodrigo Sepulveda",
+      "subject": "Totems y senaletica",
+      "condition": "30 dias",
+      "netAmount": 2650000,
+      "taxAmount": 503500,
+      "totalAmount": 3153500,
+      "status": "Emitida",
+      "items": [
+        {
+          "quantity": 1,
+          "description": "Totems y senaletica",
+          "unitValue": 2650000,
+          "total": 2650000
+        }
+      ]
+    },
+    {
+      "id": "quote-8111",
+      "quoteNumber": "8111",
+      "date": "2026-06-17",
+      "client": "Daniela Vera",
+      "company": "Clinica Visual",
+      "seller": "Christian Guzman",
+      "subject": "Letrero acrilico recepcion",
+      "condition": "30 dias",
+      "netAmount": 760000,
+      "taxAmount": 144400,
+      "totalAmount": 904400,
+      "status": "Borrador",
+      "items": [
+        {
+          "quantity": 1,
+          "description": "Letrero acrilico recepcion",
+          "unitValue": 760000,
+          "total": 760000
+        }
+      ]
+    },
+    {
+      "id": "quote-8112",
+      "quoteNumber": "8112",
+      "date": "2026-06-18",
+      "client": "Hector Pizarro",
+      "company": "Constructora Andes",
+      "seller": "Rodrigo Sepulveda",
+      "subject": "Letreros de obra",
+      "condition": "30 dias",
+      "netAmount": 1180000,
+      "taxAmount": 224200,
+      "totalAmount": 1404200,
+      "status": "Adjudicada",
+      "items": [
+        {
+          "quantity": 1,
+          "description": "Letreros de obra",
+          "unitValue": 1180000,
+          "total": 1180000
+        }
+      ]
+    },
+    {
+      "id": "quote-8113",
+      "quoteNumber": "8113",
+      "date": "2026-06-19",
+      "client": "Fernanda Leiva",
+      "company": "Universidad del Sur",
+      "seller": "Erick Cabrera",
+      "subject": "Pendones institucionales",
+      "condition": "30 dias",
+      "netAmount": 540000,
+      "taxAmount": 102600,
+      "totalAmount": 642600,
+      "status": "Emitida",
+      "items": [
+        {
+          "quantity": 1,
+          "description": "Pendones institucionales",
+          "unitValue": 540000,
+          "total": 540000
+        }
+      ]
+    },
+    {
+      "id": "quote-8114",
+      "quoteNumber": "8114",
+      "date": "2026-06-20",
+      "client": "Matias Fuentes",
+      "company": "Eventos Corporativos SPA",
+      "seller": "Rodrigo Sepulveda",
+      "subject": "Backing fotografico evento",
+      "condition": "30 dias",
+      "netAmount": 890000,
+      "taxAmount": 169100,
+      "totalAmount": 1059100,
+      "status": "Borrador",
+      "items": [
+        {
+          "quantity": 1,
+          "description": "Backing fotografico evento",
+          "unitValue": 890000,
+          "total": 890000
+        }
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc-8105",
+      "type": "Cotizacion",
+      "documentNumber": "8105",
+      "date": "2026-06-11",
+      "client": "Valentina Soto",
+      "company": "Cafe Sur SPA",
+      "seller": "Christian Guzman",
+      "totalAmount": 380800,
+      "status": "Adjudicada",
+      "tags": [
+        "cotizacion"
+      ],
+      "observations": "Vinilo impreso para POP",
+      "createdAt": "2026-06-11T12:00:00.000Z",
+      "updatedAt": "2026-06-11T12:00:00.000Z"
+    },
+    {
+      "id": "doc-8106",
+      "type": "Cotizacion",
+      "documentNumber": "8106",
+      "date": "2026-06-12",
+      "client": "Maria Gonzalez",
+      "company": "Expo Lanas Chile",
+      "seller": "Rodrigo Sepulveda",
+      "totalAmount": 2201500,
+      "status": "Emitida",
+      "tags": [
+        "cotizacion"
+      ],
+      "observations": "Stand modular feria",
+      "createdAt": "2026-06-12T12:00:00.000Z",
+      "updatedAt": "2026-06-12T12:00:00.000Z"
+    },
+    {
+      "id": "doc-8107",
+      "type": "Cotizacion",
+      "documentNumber": "8107",
+      "date": "2026-06-13",
+      "client": "Diego Herrera",
+      "company": "Fondo de Agua de Santiago",
+      "seller": "Erick Cabrera",
+      "totalAmount": 4998000,
+      "status": "Borrador",
+      "tags": [
+        "cotizacion"
+      ],
+      "observations": "Arriendo de stands Expo Agua",
+      "createdAt": "2026-06-13T12:00:00.000Z",
+      "updatedAt": "2026-06-13T12:00:00.000Z"
+    },
+    {
+      "id": "doc-8108",
+      "type": "Cotizacion",
+      "documentNumber": "8108",
+      "date": "2026-06-14",
+      "client": "Paula Marin",
+      "company": "Municipalidad Norte",
+      "seller": "Erick Cabrera",
+      "totalAmount": 1166200,
+      "status": "Emitida",
+      "tags": [
+        "cotizacion"
+      ],
+      "observations": "Grafica licitacion municipal",
+      "createdAt": "2026-06-14T12:00:00.000Z",
+      "updatedAt": "2026-06-14T12:00:00.000Z"
+    },
+    {
+      "id": "doc-8109",
+      "type": "Cotizacion",
+      "documentNumber": "8109",
+      "date": "2026-06-15",
+      "client": "Camila Rivas",
+      "company": "Retail POP Chile",
+      "seller": "Christian Guzman",
+      "totalAmount": 1725500,
+      "status": "Adjudicada",
+      "tags": [
+        "cotizacion"
+      ],
+      "observations": "Campana POP retail",
+      "createdAt": "2026-06-15T12:00:00.000Z",
+      "updatedAt": "2026-06-15T12:00:00.000Z"
+    },
+    {
+      "id": "doc-8110",
+      "type": "Cotizacion",
+      "documentNumber": "8110",
+      "date": "2026-06-16",
+      "client": "Jorge Araya",
+      "company": "Feria Industrial SPA",
+      "seller": "Rodrigo Sepulveda",
+      "totalAmount": 3153500,
+      "status": "Emitida",
+      "tags": [
+        "cotizacion"
+      ],
+      "observations": "Totems y senaletica",
+      "createdAt": "2026-06-16T12:00:00.000Z",
+      "updatedAt": "2026-06-16T12:00:00.000Z"
+    },
+    {
+      "id": "doc-8111",
+      "type": "Cotizacion",
+      "documentNumber": "8111",
+      "date": "2026-06-17",
+      "client": "Daniela Vera",
+      "company": "Clinica Visual",
+      "seller": "Christian Guzman",
+      "totalAmount": 904400,
+      "status": "Borrador",
+      "tags": [
+        "cotizacion"
+      ],
+      "observations": "Letrero acrilico recepcion",
+      "createdAt": "2026-06-17T12:00:00.000Z",
+      "updatedAt": "2026-06-17T12:00:00.000Z"
+    },
+    {
+      "id": "doc-8112",
+      "type": "Cotizacion",
+      "documentNumber": "8112",
+      "date": "2026-06-18",
+      "client": "Hector Pizarro",
+      "company": "Constructora Andes",
+      "seller": "Rodrigo Sepulveda",
+      "totalAmount": 1404200,
+      "status": "Adjudicada",
+      "tags": [
+        "cotizacion"
+      ],
+      "observations": "Letreros de obra",
+      "createdAt": "2026-06-18T12:00:00.000Z",
+      "updatedAt": "2026-06-18T12:00:00.000Z"
+    },
+    {
+      "id": "doc-8113",
+      "type": "Cotizacion",
+      "documentNumber": "8113",
+      "date": "2026-06-19",
+      "client": "Fernanda Leiva",
+      "company": "Universidad del Sur",
+      "seller": "Erick Cabrera",
+      "totalAmount": 642600,
+      "status": "Emitida",
+      "tags": [
+        "cotizacion"
+      ],
+      "observations": "Pendones institucionales",
+      "createdAt": "2026-06-19T12:00:00.000Z",
+      "updatedAt": "2026-06-19T12:00:00.000Z"
+    },
+    {
+      "id": "doc-8114",
+      "type": "Cotizacion",
+      "documentNumber": "8114",
+      "date": "2026-06-20",
+      "client": "Matias Fuentes",
+      "company": "Eventos Corporativos SPA",
+      "seller": "Rodrigo Sepulveda",
+      "totalAmount": 1059100,
+      "status": "Borrador",
+      "tags": [
+        "cotizacion"
+      ],
+      "observations": "Backing fotografico evento",
+      "createdAt": "2026-06-20T12:00:00.000Z",
+      "updatedAt": "2026-06-20T12:00:00.000Z"
+    }
+  ],
+  "tenders": [
+    {
+      "id": "tender-001",
+      "tenderId": "1425521-3-LE26",
+      "title": "Arriendo de stands para Feria Expo Agua 2026",
+      "buyer": "Fondo de Agua de Santiago",
+      "buyerRut": "",
+      "budget": 31000000,
+      "closingDate": "2026-06-30",
+      "status": "En analisis",
+      "riskLevel": "Medio",
+      "object": "Arriendo de stands para Feria Expo Agua 2026",
+      "summary": "Arriendo de stands para Feria Expo Agua 2026 para Fondo de Agua de Santiago.",
+      "administrativeRequirements": "Declaraciones juradas, antecedentes legales y anexos administrativos.",
+      "technicalRequirements": "Cumplimiento de especificaciones tecnicas, plazos y experiencia demostrable.",
+      "economicRequirements": "Oferta economica valorizada por item.",
+      "requiredDocuments": [
+        "Anexo administrativo",
+        "Oferta tecnica",
+        "Oferta economica"
+      ],
+      "essentialDocuments": [
+        "Oferta economica",
+        "Declaracion jurada"
+      ],
+      "evaluationCriteria": [
+        "Precio",
+        "Experiencia",
+        "Calidad tecnica"
+      ],
+      "guarantees": "Revisar garantia de seriedad y fiel cumplimiento segun bases.",
+      "paymentTerms": "Pago contra recepcion conforme.",
+      "penalties": "Multas por atraso segun bases.",
+      "risks": [
+        "Revisar anexos obligatorios"
+      ],
+      "suggestedQuestions": [
+        "Confirmar medidas finales",
+        "Validar formato de oferta economica"
+      ],
+      "technicalItems": [
+        {
+          "description": "Arriendo de stands para Feria Expo Agua 2026",
+          "quantity": 1,
+          "unit": "servicio"
+        }
+      ],
+      "createdAt": "2026-06-19T21:55:53.614Z",
+      "updatedAt": "2026-06-19T21:55:53.614Z"
+    },
+    {
+      "id": "tender-002",
+      "tenderId": "1057493-12-LP26",
+      "title": "Senaletica interior edificio municipal",
+      "buyer": "Municipalidad Norte",
+      "buyerRut": "",
+      "budget": 18500000,
+      "closingDate": "2026-06-26",
+      "status": "Cotizando",
+      "riskLevel": "Alto",
+      "object": "Senaletica interior edificio municipal",
+      "summary": "Senaletica interior edificio municipal para Municipalidad Norte.",
+      "administrativeRequirements": "Declaraciones juradas, antecedentes legales y anexos administrativos.",
+      "technicalRequirements": "Cumplimiento de especificaciones tecnicas, plazos y experiencia demostrable.",
+      "economicRequirements": "Oferta economica valorizada por item.",
+      "requiredDocuments": [
+        "Anexo administrativo",
+        "Oferta tecnica",
+        "Oferta economica"
+      ],
+      "essentialDocuments": [
+        "Oferta economica",
+        "Declaracion jurada"
+      ],
+      "evaluationCriteria": [
+        "Precio",
+        "Experiencia",
+        "Calidad tecnica"
+      ],
+      "guarantees": "Revisar garantia de seriedad y fiel cumplimiento segun bases.",
+      "paymentTerms": "Pago contra recepcion conforme.",
+      "penalties": "Multas por atraso segun bases.",
+      "risks": [
+        "Revisar anexos obligatorios"
+      ],
+      "suggestedQuestions": [
+        "Confirmar medidas finales",
+        "Validar formato de oferta economica"
+      ],
+      "technicalItems": [
+        {
+          "description": "Senaletica interior edificio municipal",
+          "quantity": 1,
+          "unit": "servicio"
+        }
+      ],
+      "createdAt": "2026-06-19T21:55:53.614Z",
+      "updatedAt": "2026-06-19T21:55:53.614Z"
+    },
+    {
+      "id": "tender-003",
+      "tenderId": "998877-8-LE26",
+      "title": "Produccion grafica campana salud",
+      "buyer": "Servicio de Salud Metropolitano",
+      "buyerRut": "",
+      "budget": 12500000,
+      "closingDate": "2026-07-07",
+      "status": "Consultas",
+      "riskLevel": "Medio",
+      "object": "Produccion grafica campana salud",
+      "summary": "Produccion grafica campana salud para Servicio de Salud Metropolitano.",
+      "administrativeRequirements": "Declaraciones juradas, antecedentes legales y anexos administrativos.",
+      "technicalRequirements": "Cumplimiento de especificaciones tecnicas, plazos y experiencia demostrable.",
+      "economicRequirements": "Oferta economica valorizada por item.",
+      "requiredDocuments": [
+        "Anexo administrativo",
+        "Oferta tecnica",
+        "Oferta economica"
+      ],
+      "essentialDocuments": [
+        "Oferta economica",
+        "Declaracion jurada"
+      ],
+      "evaluationCriteria": [
+        "Precio",
+        "Experiencia",
+        "Calidad tecnica"
+      ],
+      "guarantees": "Revisar garantia de seriedad y fiel cumplimiento segun bases.",
+      "paymentTerms": "Pago contra recepcion conforme.",
+      "penalties": "Multas por atraso segun bases.",
+      "risks": [
+        "Revisar anexos obligatorios"
+      ],
+      "suggestedQuestions": [
+        "Confirmar medidas finales",
+        "Validar formato de oferta economica"
+      ],
+      "technicalItems": [
+        {
+          "description": "Produccion grafica campana salud",
+          "quantity": 1,
+          "unit": "servicio"
+        }
+      ],
+      "createdAt": "2026-06-19T21:55:53.614Z",
+      "updatedAt": "2026-06-19T21:55:53.614Z"
+    },
+    {
+      "id": "tender-004",
+      "tenderId": "774411-4-LQ26",
+      "title": "Implementacion stand feria empleo",
+      "buyer": "Universidad del Sur",
+      "buyerRut": "",
+      "budget": 22000000,
+      "closingDate": "2026-07-14",
+      "status": "Lista para ofertar",
+      "riskLevel": "Bajo",
+      "object": "Implementacion stand feria empleo",
+      "summary": "Implementacion stand feria empleo para Universidad del Sur.",
+      "administrativeRequirements": "Declaraciones juradas, antecedentes legales y anexos administrativos.",
+      "technicalRequirements": "Cumplimiento de especificaciones tecnicas, plazos y experiencia demostrable.",
+      "economicRequirements": "Oferta economica valorizada por item.",
+      "requiredDocuments": [
+        "Anexo administrativo",
+        "Oferta tecnica",
+        "Oferta economica"
+      ],
+      "essentialDocuments": [
+        "Oferta economica",
+        "Declaracion jurada"
+      ],
+      "evaluationCriteria": [
+        "Precio",
+        "Experiencia",
+        "Calidad tecnica"
+      ],
+      "guarantees": "Revisar garantia de seriedad y fiel cumplimiento segun bases.",
+      "paymentTerms": "Pago contra recepcion conforme.",
+      "penalties": "Multas por atraso segun bases.",
+      "risks": [
+        "Revisar anexos obligatorios"
+      ],
+      "suggestedQuestions": [
+        "Confirmar medidas finales",
+        "Validar formato de oferta economica"
+      ],
+      "technicalItems": [
+        {
+          "description": "Implementacion stand feria empleo",
+          "quantity": 1,
+          "unit": "servicio"
+        }
+      ],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "tender-005",
+      "tenderId": "665544-2-LE26",
+      "title": "Vinilos y letreros para dependencias",
+      "buyer": "Ministerio de Cultura",
+      "buyerRut": "",
+      "budget": 9600000,
+      "closingDate": "2026-06-22",
+      "status": "En analisis",
+      "riskLevel": "Critico",
+      "object": "Vinilos y letreros para dependencias",
+      "summary": "Vinilos y letreros para dependencias para Ministerio de Cultura.",
+      "administrativeRequirements": "Declaraciones juradas, antecedentes legales y anexos administrativos.",
+      "technicalRequirements": "Cumplimiento de especificaciones tecnicas, plazos y experiencia demostrable.",
+      "economicRequirements": "Oferta economica valorizada por item.",
+      "requiredDocuments": [
+        "Anexo administrativo",
+        "Oferta tecnica",
+        "Oferta economica"
+      ],
+      "essentialDocuments": [
+        "Oferta economica",
+        "Declaracion jurada"
+      ],
+      "evaluationCriteria": [
+        "Precio",
+        "Experiencia",
+        "Calidad tecnica"
+      ],
+      "guarantees": "Revisar garantia de seriedad y fiel cumplimiento segun bases.",
+      "paymentTerms": "Pago contra recepcion conforme.",
+      "penalties": "Multas por atraso segun bases.",
+      "risks": [
+        "Cierre proximo",
+        "Requisitos excluyentes"
+      ],
+      "suggestedQuestions": [
+        "Confirmar medidas finales",
+        "Validar formato de oferta economica"
+      ],
+      "technicalItems": [
+        {
+          "description": "Vinilos y letreros para dependencias",
+          "quantity": 1,
+          "unit": "servicio"
+        }
+      ],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "tender-006",
+      "tenderId": "553322-7-LP26",
+      "title": "Totems informativos centros comunitarios",
+      "buyer": "Gobierno Regional",
+      "buyerRut": "",
+      "budget": 44000000,
+      "closingDate": "2026-07-21",
+      "status": "Borrador",
+      "riskLevel": "Medio",
+      "object": "Totems informativos centros comunitarios",
+      "summary": "Totems informativos centros comunitarios para Gobierno Regional.",
+      "administrativeRequirements": "Declaraciones juradas, antecedentes legales y anexos administrativos.",
+      "technicalRequirements": "Cumplimiento de especificaciones tecnicas, plazos y experiencia demostrable.",
+      "economicRequirements": "Oferta economica valorizada por item.",
+      "requiredDocuments": [
+        "Anexo administrativo",
+        "Oferta tecnica",
+        "Oferta economica"
+      ],
+      "essentialDocuments": [
+        "Oferta economica",
+        "Declaracion jurada"
+      ],
+      "evaluationCriteria": [
+        "Precio",
+        "Experiencia",
+        "Calidad tecnica"
+      ],
+      "guarantees": "Revisar garantia de seriedad y fiel cumplimiento segun bases.",
+      "paymentTerms": "Pago contra recepcion conforme.",
+      "penalties": "Multas por atraso segun bases.",
+      "risks": [
+        "Revisar anexos obligatorios"
+      ],
+      "suggestedQuestions": [
+        "Confirmar medidas finales",
+        "Validar formato de oferta economica"
+      ],
+      "technicalItems": [
+        {
+          "description": "Totems informativos centros comunitarios",
+          "quantity": 1,
+          "unit": "servicio"
+        }
+      ],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "tender-007",
+      "tenderId": "441100-9-LE26",
+      "title": "Material POP para campana reciclaje",
+      "buyer": "Municipalidad de Providencia",
+      "buyerRut": "",
+      "budget": 7800000,
+      "closingDate": "2026-07-03",
+      "status": "Postulada",
+      "riskLevel": "Bajo",
+      "object": "Material POP para campana reciclaje",
+      "summary": "Material POP para campana reciclaje para Municipalidad de Providencia.",
+      "administrativeRequirements": "Declaraciones juradas, antecedentes legales y anexos administrativos.",
+      "technicalRequirements": "Cumplimiento de especificaciones tecnicas, plazos y experiencia demostrable.",
+      "economicRequirements": "Oferta economica valorizada por item.",
+      "requiredDocuments": [
+        "Anexo administrativo",
+        "Oferta tecnica",
+        "Oferta economica"
+      ],
+      "essentialDocuments": [
+        "Oferta economica",
+        "Declaracion jurada"
+      ],
+      "evaluationCriteria": [
+        "Precio",
+        "Experiencia",
+        "Calidad tecnica"
+      ],
+      "guarantees": "Revisar garantia de seriedad y fiel cumplimiento segun bases.",
+      "paymentTerms": "Pago contra recepcion conforme.",
+      "penalties": "Multas por atraso segun bases.",
+      "risks": [
+        "Revisar anexos obligatorios"
+      ],
+      "suggestedQuestions": [
+        "Confirmar medidas finales",
+        "Validar formato de oferta economica"
+      ],
+      "technicalItems": [
+        {
+          "description": "Material POP para campana reciclaje",
+          "quantity": 1,
+          "unit": "servicio"
+        }
+      ],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "tender-008",
+      "tenderId": "337799-1-LQ26",
+      "title": "Grafica vehicular institucional",
+      "buyer": "Empresa Portuaria",
+      "buyerRut": "",
+      "budget": 16800000,
+      "closingDate": "2026-07-10",
+      "status": "Cotizando",
+      "riskLevel": "Medio",
+      "object": "Grafica vehicular institucional",
+      "summary": "Grafica vehicular institucional para Empresa Portuaria.",
+      "administrativeRequirements": "Declaraciones juradas, antecedentes legales y anexos administrativos.",
+      "technicalRequirements": "Cumplimiento de especificaciones tecnicas, plazos y experiencia demostrable.",
+      "economicRequirements": "Oferta economica valorizada por item.",
+      "requiredDocuments": [
+        "Anexo administrativo",
+        "Oferta tecnica",
+        "Oferta economica"
+      ],
+      "essentialDocuments": [
+        "Oferta economica",
+        "Declaracion jurada"
+      ],
+      "evaluationCriteria": [
+        "Precio",
+        "Experiencia",
+        "Calidad tecnica"
+      ],
+      "guarantees": "Revisar garantia de seriedad y fiel cumplimiento segun bases.",
+      "paymentTerms": "Pago contra recepcion conforme.",
+      "penalties": "Multas por atraso segun bases.",
+      "risks": [
+        "Revisar anexos obligatorios"
+      ],
+      "suggestedQuestions": [
+        "Confirmar medidas finales",
+        "Validar formato de oferta economica"
+      ],
+      "technicalItems": [
+        {
+          "description": "Grafica vehicular institucional",
+          "quantity": 1,
+          "unit": "servicio"
+        }
+      ],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "tender-009",
+      "tenderId": "220011-5-LE26",
+      "title": "Pendones y estructuras para seminario",
+      "buyer": "CORFO",
+      "buyerRut": "",
+      "budget": 5400000,
+      "closingDate": "2026-06-17",
+      "status": "Perdida",
+      "riskLevel": "Alto",
+      "object": "Pendones y estructuras para seminario",
+      "summary": "Pendones y estructuras para seminario para CORFO.",
+      "administrativeRequirements": "Declaraciones juradas, antecedentes legales y anexos administrativos.",
+      "technicalRequirements": "Cumplimiento de especificaciones tecnicas, plazos y experiencia demostrable.",
+      "economicRequirements": "Oferta economica valorizada por item.",
+      "requiredDocuments": [
+        "Anexo administrativo",
+        "Oferta tecnica",
+        "Oferta economica"
+      ],
+      "essentialDocuments": [
+        "Oferta economica",
+        "Declaracion jurada"
+      ],
+      "evaluationCriteria": [
+        "Precio",
+        "Experiencia",
+        "Calidad tecnica"
+      ],
+      "guarantees": "Revisar garantia de seriedad y fiel cumplimiento segun bases.",
+      "paymentTerms": "Pago contra recepcion conforme.",
+      "penalties": "Multas por atraso segun bases.",
+      "risks": [
+        "Revisar anexos obligatorios"
+      ],
+      "suggestedQuestions": [
+        "Confirmar medidas finales",
+        "Validar formato de oferta economica"
+      ],
+      "technicalItems": [
+        {
+          "description": "Pendones y estructuras para seminario",
+          "quantity": 1,
+          "unit": "servicio"
+        }
+      ],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "tender-010",
+      "tenderId": "119900-6-LP26",
+      "title": "Sistema de exhibicion modular",
+      "buyer": "Subsecretaria de Turismo",
+      "buyerRut": "",
+      "budget": 36500000,
+      "closingDate": "2026-07-29",
+      "status": "Adjudicada",
+      "riskLevel": "Bajo",
+      "object": "Sistema de exhibicion modular",
+      "summary": "Sistema de exhibicion modular para Subsecretaria de Turismo.",
+      "administrativeRequirements": "Declaraciones juradas, antecedentes legales y anexos administrativos.",
+      "technicalRequirements": "Cumplimiento de especificaciones tecnicas, plazos y experiencia demostrable.",
+      "economicRequirements": "Oferta economica valorizada por item.",
+      "requiredDocuments": [
+        "Anexo administrativo",
+        "Oferta tecnica",
+        "Oferta economica"
+      ],
+      "essentialDocuments": [
+        "Oferta economica",
+        "Declaracion jurada"
+      ],
+      "evaluationCriteria": [
+        "Precio",
+        "Experiencia",
+        "Calidad tecnica"
+      ],
+      "guarantees": "Revisar garantia de seriedad y fiel cumplimiento segun bases.",
+      "paymentTerms": "Pago contra recepcion conforme.",
+      "penalties": "Multas por atraso segun bases.",
+      "risks": [
+        "Revisar anexos obligatorios"
+      ],
+      "suggestedQuestions": [
+        "Confirmar medidas finales",
+        "Validar formato de oferta economica"
+      ],
+      "technicalItems": [
+        {
+          "description": "Sistema de exhibicion modular",
+          "quantity": 1,
+          "unit": "servicio"
+        }
+      ],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    }
+  ],
+  "workOrders": [
+    {
+      "id": "wo-001",
+      "title": "Arte final Cafe Sur",
+      "type": "Diseno grafico",
+      "client": "",
+      "company": "",
+      "quoteNumber": "",
+      "requesterName": "Rodrigo Sepulveda",
+      "assigneeName": "Mathias Olavarria",
+      "sourceArea": "Ventas",
+      "targetArea": "Diseno",
+      "priority": "Alta",
+      "status": "En proceso",
+      "dueDate": "2026-06-18",
+      "description": "Arte final Cafe Sur",
+      "comments": [],
+      "movements": [],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "wo-002",
+      "title": "Produccion stand Expo Lanas",
+      "type": "Produccion grafica",
+      "client": "",
+      "company": "",
+      "quoteNumber": "",
+      "requesterName": "Rodrigo Sepulveda",
+      "assigneeName": "Mathias Olavarria",
+      "sourceArea": "Diseno",
+      "targetArea": "Produccion",
+      "priority": "Media",
+      "status": "Pendiente",
+      "dueDate": "2026-06-24",
+      "description": "Produccion stand Expo Lanas",
+      "comments": [],
+      "movements": [],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "wo-003",
+      "title": "Revision tecnica Expo Agua",
+      "type": "Licitacion",
+      "client": "",
+      "company": "",
+      "quoteNumber": "",
+      "requesterName": "Rodrigo Sepulveda",
+      "assigneeName": "Mathias Olavarria",
+      "sourceArea": "Licitaciones",
+      "targetArea": "Produccion",
+      "priority": "Urgente",
+      "status": "En revision",
+      "dueDate": "2026-06-21",
+      "description": "Revision tecnica Expo Agua",
+      "comments": [],
+      "movements": [],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "wo-004",
+      "title": "Instalacion municipal",
+      "type": "Instalacion",
+      "client": "",
+      "company": "",
+      "quoteNumber": "",
+      "requesterName": "Rodrigo Sepulveda",
+      "assigneeName": "Mathias Olavarria",
+      "sourceArea": "Produccion",
+      "targetArea": "Instalaciones",
+      "priority": "Alta",
+      "status": "Pendiente",
+      "dueDate": "2026-06-26",
+      "description": "Instalacion municipal",
+      "comments": [],
+      "movements": [],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "wo-005",
+      "title": "Compra acrilicos Clinica Visual",
+      "type": "Compra",
+      "client": "",
+      "company": "",
+      "quoteNumber": "",
+      "requesterName": "Rodrigo Sepulveda",
+      "assigneeName": "Mathias Olavarria",
+      "sourceArea": "Produccion",
+      "targetArea": "Compras",
+      "priority": "Media",
+      "status": "Finalizada",
+      "dueDate": "2026-06-16",
+      "description": "Compra acrilicos Clinica Visual",
+      "comments": [],
+      "movements": [],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "wo-006",
+      "title": "Mockups Retail POP",
+      "type": "Diseno grafico",
+      "client": "",
+      "company": "",
+      "quoteNumber": "",
+      "requesterName": "Rodrigo Sepulveda",
+      "assigneeName": "Mathias Olavarria",
+      "sourceArea": "Marketing",
+      "targetArea": "Diseno",
+      "priority": "Media",
+      "status": "En proceso",
+      "dueDate": "2026-06-23",
+      "description": "Mockups Retail POP",
+      "comments": [],
+      "movements": [],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "wo-007",
+      "title": "Totems Feria Industrial",
+      "type": "Produccion grafica",
+      "client": "",
+      "company": "",
+      "quoteNumber": "",
+      "requesterName": "Rodrigo Sepulveda",
+      "assigneeName": "Mathias Olavarria",
+      "sourceArea": "Ventas",
+      "targetArea": "Taller",
+      "priority": "Alta",
+      "status": "Pendiente",
+      "dueDate": "2026-06-27",
+      "description": "Totems Feria Industrial",
+      "comments": [],
+      "movements": [],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "wo-008",
+      "title": "Facturacion Constructora Andes",
+      "type": "Administrativo",
+      "client": "",
+      "company": "",
+      "quoteNumber": "",
+      "requesterName": "Rodrigo Sepulveda",
+      "assigneeName": "Mathias Olavarria",
+      "sourceArea": "Ventas",
+      "targetArea": "Administracion",
+      "priority": "Baja",
+      "status": "Aprobada",
+      "dueDate": "2026-06-20",
+      "description": "Facturacion Constructora Andes",
+      "comments": [],
+      "movements": [],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "wo-009",
+      "title": "Pendones Universidad Sur",
+      "type": "Produccion grafica",
+      "client": "",
+      "company": "",
+      "quoteNumber": "",
+      "requesterName": "Rodrigo Sepulveda",
+      "assigneeName": "Mathias Olavarria",
+      "sourceArea": "Diseno",
+      "targetArea": "Produccion",
+      "priority": "Media",
+      "status": "En revision",
+      "dueDate": "2026-06-22",
+      "description": "Pendones Universidad Sur",
+      "comments": [],
+      "movements": [],
+      "createdAt": "2026-06-19T21:55:53.615Z",
+      "updatedAt": "2026-06-19T21:55:53.615Z"
+    },
+    {
+      "id": "wo-010",
+      "title": "Backing Eventos Corporativos",
+      "type": "Instalacion",
+      "client": "",
+      "company": "",
+      "quoteNumber": "",
+      "requesterName": "Rodrigo Sepulveda",
+      "assigneeName": "Mathias Olavarria",
+      "sourceArea": "Ventas",
+      "targetArea": "Instalaciones",
+      "priority": "Urgente",
+      "status": "Pendiente",
+      "dueDate": "2026-06-20",
+      "description": "Backing Eventos Corporativos",
+      "comments": [],
+      "movements": [],
+      "createdAt": "2026-06-19T21:55:53.616Z",
+      "updatedAt": "2026-06-19T21:55:53.616Z"
+    }
+  ],
+  "suppliers": [
+    {
+      "id": "sup-grafica-santiago",
+      "name": "Proveedor Grafica Santiago",
+      "rut": "76.000.000-0",
+      "contactName": "Contacto proveedor",
+      "email": "grafica-santiago@example.com",
+      "category": "Insumos",
+      "status": "Activo"
+    },
+    {
+      "id": "sup-acrilicos-center",
+      "name": "Acrilicos Center",
+      "rut": "76.000.001-9",
+      "contactName": "Contacto proveedor",
+      "email": "acrilicos-center@example.com",
+      "category": "Materiales rigidos",
+      "status": "Activo"
+    },
+    {
+      "id": "sup-lonas-pro",
+      "name": "Lonas Pro",
+      "rut": "76.000.002-7",
+      "contactName": "Contacto proveedor",
+      "email": "lonas-pro@example.com",
+      "category": "PVC y telas",
+      "status": "Activo"
+    },
+    {
+      "id": "sup-taller-metal",
+      "name": "Taller Metal Norte",
+      "rut": "76.000.003-5",
+      "contactName": "Contacto proveedor",
+      "email": "taller-metal@example.com",
+      "category": "Estructuras",
+      "status": "Activo"
+    },
+    {
+      "id": "sup-instalaciones-rubik",
+      "name": "Servicios Instalacion Rubik",
+      "rut": "76.000.004-3",
+      "contactName": "Contacto proveedor",
+      "email": "instalaciones-rubik@example.com",
+      "category": "Instalacion",
+      "status": "Activo"
+    },
+    {
+      "id": "sup-transporte-rapido",
+      "name": "Transporte Rapido SPA",
+      "rut": "76.000.005-1",
+      "contactName": "Contacto proveedor",
+      "email": "transporte-rapido@example.com",
+      "category": "Despacho",
+      "status": "Activo"
+    },
+    {
+      "id": "sup-impresion-digital",
+      "name": "Insumos Impresion Digital",
+      "rut": "76.000.006-K",
+      "contactName": "Contacto proveedor",
+      "email": "impresion-digital@example.com",
+      "category": "Tintas",
+      "status": "Activo"
+    },
+    {
+      "id": "sup-ferreteria-central",
+      "name": "Ferreteria Central",
+      "rut": "76.000.007-8",
+      "contactName": "Contacto proveedor",
+      "email": "ferreteria-central@example.com",
+      "category": "Herramientas",
+      "status": "Activo"
+    },
+    {
+      "id": "sup-software-diseno",
+      "name": "Software Diseno Pro",
+      "rut": "76.000.008-6",
+      "contactName": "Contacto proveedor",
+      "email": "software-diseno@example.com",
+      "category": "Software",
+      "status": "Activo"
+    },
+    {
+      "id": "sup-servicios-contables",
+      "name": "Servicios Contables Rubik",
+      "rut": "76.000.009-4",
+      "contactName": "Contacto proveedor",
+      "email": "servicios-contables@example.com",
+      "category": "Contabilidad",
+      "status": "Activo"
+    }
+  ],
+  "financeMovements": [
+    {
+      "id": "fin-001",
+      "type": "Ingreso",
+      "category": "Venta",
+      "documentType": "Factura afecta",
+      "documentNumber": "COT-8105",
+      "client": "Cafe Sur SPA",
+      "company": "Cafe Sur SPA",
+      "supplierName": "",
+      "description": "Vinilo impreso POP",
+      "netAmount": 320000,
+      "taxRate": 19,
+      "paidAmount": 0,
+      "issueDate": "2026-06-09",
+      "dueDate": "2026-06-07",
+      "paymentMethod": "Transferencia",
+      "responsibleName": "Christian Guzman",
+      "responsibleEmail": "c.guzman@rubikcreaciones.cl",
+      "createdAt": "2026-06-19T21:55:53.616Z",
+      "updatedAt": "2026-06-19T21:55:53.616Z",
+      "isTaxExempt": false,
+      "taxAmount": 60800,
+      "totalAmount": 380800,
+      "pendingAmount": 380800,
+      "status": "Vencido"
+    },
+    {
+      "id": "fin-002",
+      "type": "Ingreso",
+      "category": "Venta",
+      "documentType": "Factura afecta",
+      "documentNumber": "COT-8106",
+      "client": "Expo Lanas Chile",
+      "company": "Expo Lanas Chile",
+      "supplierName": "",
+      "description": "Stand modular feria",
+      "netAmount": 1850000,
+      "taxRate": 19,
+      "paidAmount": 900000,
+      "issueDate": "2026-06-09",
+      "dueDate": "2026-06-27",
+      "paymentMethod": "Transferencia",
+      "responsibleName": "Christian Guzman",
+      "responsibleEmail": "c.guzman@rubikcreaciones.cl",
+      "createdAt": "2026-06-19T21:55:53.617Z",
+      "updatedAt": "2026-06-19T21:55:53.617Z",
+      "isTaxExempt": false,
+      "taxAmount": 351500,
+      "totalAmount": 2201500,
+      "pendingAmount": 1301500,
+      "status": "Pago parcial"
+    },
+    {
+      "id": "fin-003",
+      "type": "Ingreso",
+      "category": "Venta",
+      "documentType": "Factura afecta",
+      "documentNumber": "COT-8108",
+      "client": "Municipalidad Norte",
+      "company": "Municipalidad Norte",
+      "supplierName": "",
+      "description": "Grafica licitacion municipal",
+      "netAmount": 980000,
+      "taxRate": 19,
+      "paidAmount": 0,
+      "issueDate": "2026-06-09",
+      "dueDate": "2026-06-15",
+      "paymentMethod": "Transferencia",
+      "responsibleName": "Christian Guzman",
+      "responsibleEmail": "c.guzman@rubikcreaciones.cl",
+      "createdAt": "2026-06-19T21:55:53.617Z",
+      "updatedAt": "2026-06-19T21:55:53.617Z",
+      "isTaxExempt": false,
+      "taxAmount": 186200,
+      "totalAmount": 1166200,
+      "pendingAmount": 1166200,
+      "status": "Vencido"
+    },
+    {
+      "id": "fin-004",
+      "type": "Ingreso",
+      "category": "Venta",
+      "documentType": "Factura afecta",
+      "documentNumber": "COT-8109",
+      "client": "Retail POP Chile",
+      "company": "Retail POP Chile",
+      "supplierName": "",
+      "description": "Campana POP retail",
+      "netAmount": 1450000,
+      "taxRate": 19,
+      "paidAmount": 1725500,
+      "issueDate": "2026-06-09",
+      "dueDate": "2026-06-22",
+      "paymentMethod": "Transferencia",
+      "responsibleName": "Christian Guzman",
+      "responsibleEmail": "c.guzman@rubikcreaciones.cl",
+      "createdAt": "2026-06-19T21:55:53.617Z",
+      "updatedAt": "2026-06-19T21:55:53.617Z",
+      "isTaxExempt": false,
+      "taxAmount": 275500,
+      "totalAmount": 1725500,
+      "pendingAmount": 0,
+      "status": "Pagado"
+    },
+    {
+      "id": "fin-005",
+      "type": "Ingreso",
+      "category": "Venta",
+      "documentType": "Factura afecta",
+      "documentNumber": "COT-8112",
+      "client": "Constructora Andes",
+      "company": "Constructora Andes",
+      "supplierName": "",
+      "description": "Letreros de obra",
+      "netAmount": 1180000,
+      "taxRate": 19,
+      "paidAmount": 700000,
+      "issueDate": "2026-06-09",
+      "dueDate": "2026-07-01",
+      "paymentMethod": "Transferencia",
+      "responsibleName": "Christian Guzman",
+      "responsibleEmail": "c.guzman@rubikcreaciones.cl",
+      "createdAt": "2026-06-19T21:55:53.617Z",
+      "updatedAt": "2026-06-19T21:55:53.617Z",
+      "isTaxExempt": false,
+      "taxAmount": 224200,
+      "totalAmount": 1404200,
+      "pendingAmount": 704200,
+      "status": "Pago parcial"
+    },
+    {
+      "id": "fin-006",
+      "type": "Egreso",
+      "category": "Insumos",
+      "documentType": "Factura afecta",
+      "documentNumber": "F-2001",
+      "client": "",
+      "company": "",
+      "supplierName": "Proveedor Grafica Santiago",
+      "description": "Compra PVC y tintas",
+      "netAmount": 350000,
+      "taxRate": 19,
+      "paidAmount": 416500,
+      "issueDate": "2026-06-09",
+      "dueDate": "2026-06-17",
+      "paymentMethod": "Transferencia",
+      "responsibleName": "Ivone Romero",
+      "responsibleEmail": "contacto@rubikcreaciones.cl",
+      "createdAt": "2026-06-19T21:55:53.618Z",
+      "updatedAt": "2026-06-19T21:55:53.618Z",
+      "isTaxExempt": false,
+      "taxAmount": 66500,
+      "totalAmount": 416500,
+      "pendingAmount": 0,
+      "status": "Pagado"
+    },
+    {
+      "id": "fin-007",
+      "type": "Egreso",
+      "category": "Materiales",
+      "documentType": "Factura afecta",
+      "documentNumber": "F-2002",
+      "client": "",
+      "company": "",
+      "supplierName": "Acrilicos Center",
+      "description": "Acrilicos 4 mm",
+      "netAmount": 520000,
+      "taxRate": 19,
+      "paidAmount": 0,
+      "issueDate": "2026-06-09",
+      "dueDate": "2026-06-25",
+      "paymentMethod": "Transferencia",
+      "responsibleName": "Ivone Romero",
+      "responsibleEmail": "contacto@rubikcreaciones.cl",
+      "createdAt": "2026-06-19T21:55:53.618Z",
+      "updatedAt": "2026-06-19T21:55:53.618Z",
+      "isTaxExempt": false,
+      "taxAmount": 98800,
+      "totalAmount": 618800,
+      "pendingAmount": 618800,
+      "status": "Sin pagar"
+    },
+    {
+      "id": "fin-008",
+      "type": "Egreso",
+      "category": "Instalacion",
+      "documentType": "Factura afecta",
+      "documentNumber": "F-2003",
+      "client": "",
+      "company": "",
+      "supplierName": "Servicios Instalacion Rubik",
+      "description": "Equipo instalacion retail",
+      "netAmount": 280000,
+      "taxRate": 19,
+      "paidAmount": 150000,
+      "issueDate": "2026-06-09",
+      "dueDate": "2026-06-23",
+      "paymentMethod": "Transferencia",
+      "responsibleName": "Ivone Romero",
+      "responsibleEmail": "contacto@rubikcreaciones.cl",
+      "createdAt": "2026-06-19T21:55:53.618Z",
+      "updatedAt": "2026-06-19T21:55:53.618Z",
+      "isTaxExempt": false,
+      "taxAmount": 53200,
+      "totalAmount": 333200,
+      "pendingAmount": 183200,
+      "status": "Pago parcial"
+    },
+    {
+      "id": "fin-009",
+      "type": "Egreso",
+      "category": "Software",
+      "documentType": "Factura afecta",
+      "documentNumber": "F-2004",
+      "client": "",
+      "company": "",
+      "supplierName": "Software Diseno Pro",
+      "description": "Licencias diseno",
+      "netAmount": 190000,
+      "taxRate": 19,
+      "paidAmount": 226100,
+      "issueDate": "2026-06-09",
+      "dueDate": "2026-06-20",
+      "paymentMethod": "Transferencia",
+      "responsibleName": "Ivone Romero",
+      "responsibleEmail": "contacto@rubikcreaciones.cl",
+      "createdAt": "2026-06-19T21:55:53.618Z",
+      "updatedAt": "2026-06-19T21:55:53.618Z",
+      "isTaxExempt": false,
+      "taxAmount": 36100,
+      "totalAmount": 226100,
+      "pendingAmount": 0,
+      "status": "Pagado"
+    },
+    {
+      "id": "fin-010",
+      "type": "Egreso",
+      "category": "Transporte",
+      "documentType": "Factura afecta",
+      "documentNumber": "F-2005",
+      "client": "",
+      "company": "",
+      "supplierName": "Transporte Rapido SPA",
+      "description": "Despachos junio",
+      "netAmount": 140000,
+      "taxRate": 19,
+      "paidAmount": 0,
+      "issueDate": "2026-06-09",
+      "dueDate": "2026-06-12",
+      "paymentMethod": "Transferencia",
+      "responsibleName": "Ivone Romero",
+      "responsibleEmail": "contacto@rubikcreaciones.cl",
+      "createdAt": "2026-06-19T21:55:53.618Z",
+      "updatedAt": "2026-06-19T21:55:53.618Z",
+      "isTaxExempt": false,
+      "taxAmount": 26600,
+      "totalAmount": 166600,
+      "pendingAmount": 166600,
+      "status": "Vencido"
+    }
+  ]
+}

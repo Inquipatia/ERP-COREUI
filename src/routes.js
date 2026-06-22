@@ -28,6 +28,14 @@ const CotizacionesERP = React.lazy(() => import('./views/erp/Cotizaciones'))
 const DocumentosERP = React.lazy(() => import('./views/erp/documentos/Documentos'))
 const Licitaciones = React.lazy(() => import('./views/erp/licitaciones/Licitaciones'))
 const OrdenesTrabajo = React.lazy(() => import('./views/erp/ordenes-trabajo/OrdenesTrabajo'))
+const Finanzas = React.lazy(() => import('./views/erp/administracion/Finanzas'))
+const Pagos = React.lazy(() => import('./views/erp/administracion/Pagos'))
+const CuentasPorCobrar = React.lazy(() =>
+  import('./views/erp/administracion/CuentasPorCobrar'),
+)
+const CuentasPorPagar = React.lazy(() => import('./views/erp/administracion/CuentasPorPagar'))
+const Proveedores = React.lazy(() => import('./views/erp/administracion/Proveedores'))
+const Gastos = React.lazy(() => import('./views/erp/administracion/Gastos'))
 const ConfiguracionRubikERP = React.lazy(() => import('./views/erp/ConfiguracionRubik'))
 const Colors = React.lazy(() => import('./views/theme/colors/Colors'))
 const Typography = React.lazy(() => import('./views/theme/typography/Typography'))
@@ -116,6 +124,20 @@ export const routes = [
   { path: '/erp/documentos', name: 'Documentos', element: DocumentosERP },
   { path: '/erp/licitaciones', name: 'Licitaciones', element: Licitaciones },
   { path: '/erp/ordenes-trabajo', name: 'Órdenes de trabajo', element: OrdenesTrabajo },
+  { path: '/erp/administracion/finanzas', name: 'Finanzas', element: Finanzas },
+  { path: '/erp/administracion/pagos', name: 'Pagos', element: Pagos },
+  {
+    path: '/erp/administracion/cuentas-por-cobrar',
+    name: 'Cuentas por cobrar',
+    element: CuentasPorCobrar,
+  },
+  {
+    path: '/erp/administracion/cuentas-por-pagar',
+    name: 'Cuentas por pagar',
+    element: CuentasPorPagar,
+  },
+  { path: '/erp/administracion/proveedores', name: 'Proveedores', element: Proveedores },
+  { path: '/erp/administracion/gastos', name: 'Gastos', element: Gastos },
   { path: '/erp/configuracion', name: 'Configuraci�n Rubik', element: ConfiguracionRubikERP },
   { path: '/cotizador-5000', exact: true, name: 'Cotizador 5000' },
   {

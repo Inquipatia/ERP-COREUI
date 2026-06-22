@@ -1,732 +1,261 @@
-import { readStorage, STORAGE_KEYS } from './storage'
+export const DEFAULT_IVA_RATE = 19
+export const DEFAULT_TAX_RATE = DEFAULT_IVA_RATE
 
-const WORK_ORDER_STORAGE_KEY = 'rubik.erp.workOrders'
-const TENDER_STORAGE_KEY = 'rubik.erp.tenders'
-
-const FINANCE_WORDS = [
-  'finanza',
-  'finanzas',
-  'margen',
-  'utilidad',
-  'ganancia',
-  'costo',
-  'costos',
-  'presupuesto',
-  'valor',
-  'precio',
-  'neto',
-  'iva',
-  'total',
-  'factura',
-  'pago',
-  'monto',
-  'economico',
-  'económico',
+export const FINANCE_PAYMENT_STATUSES = [
+  'Sin pagar',
+  'Pago parcial',
+  'Pagado',
+  'Vencido',
+  'Anulado',
 ]
 
-const SELLER_WORDS = [
-  'quien vendio',
-  'quién vendió',
-  'quien vendió',
-  'quién vendio',
-  'vendio',
-  'vendió',
-  'vendedor',
-  'vendieron',
-  'comercial',
-  'ejecutivo',
-  'quien hizo',
-  'quién hizo',
-  'quien genero',
-  'quién generó',
-  'quien creo',
-  'quién creó',
-  'solicitante',
-  'responsable comercial',
-]
+export const getNumberValue = (value) => {
+  if (value === '' || value === null || value === undefined) return 0
 
-const QUOTE_WORDS = ['cotizacion', 'cotización', 'cotizaciones', 'oferta', 'presupuesto']
-const DOCUMENT_WORDS = ['documento', 'documentos', 'archivo', 'archivos', 'anexo', 'anexos']
-const ADMIN_WORDS = ['administrativo', 'administrativa', 'legal', 'declaracion', 'declaración', 'rut', 'certificado']
-const ECONOMIC_WORDS = ['economico', 'económico', 'economica', 'económica', 'valor', 'precio', 'monto', 'pago']
+  const cleanedValue = String(value)
+    .replace(/\s/g, '')
+    .replace(/\$/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.')
+  const parsedValue = Number(cleanedValue)
 
-const STOP_WORDS = [
-  'quien',
-  'quién',
-  'vendio',
-  'vendió',
-  'vendieron',
-  'vendedor',
-  'comercial',
-  'ejecutivo',
-  'hizo',
-  'genero',
-  'generó',
-  'creo',
-  'creó',
-  'solicito',
-  'solicitó',
-  'solicitante',
-  'responsable',
-  'diga',
-  'decir',
-  'mostrar',
-  'muestre',
-  'busca',
-  'buscar',
-  'para',
-  'por',
-  'con',
-  'del',
-  'desde',
-  'hacia',
-  'sobre',
-  'de',
-  'la',
-  'el',
-  'los',
-  'las',
-  'un',
-  'una',
-  'unos',
-  'unas',
-  'que',
-  'cual',
-  'cuál',
-  'cuantas',
-  'cuántas',
-  'cuantos',
-  'cuántos',
-  'cantidad',
-  'total',
-  'hay',
-  'me',
-]
-
-export const normalizeAssistantText = (value = '') =>
-  String(value)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9ñ\s]/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-const safeArray = (value) => (Array.isArray(value) ? value : [])
-
-const stringifySafe = (value) => {
-  if (value === null || value === undefined) return ''
-  if (Array.isArray(value)) return value.map(stringifySafe).join(' | ')
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
+  return Number.isFinite(parsedValue) ? parsedValue : 0
 }
 
-const formatCurrency = (value) =>
+export const roundCurrency = (value) => Math.round(getNumberValue(value))
+
+export const calculateTaxAmount = (
+  netAmount,
+  taxRate = DEFAULT_TAX_RATE,
+  isTaxExempt = false,
+) => {
+  if (isTaxExempt) return 0
+  return roundCurrency((roundCurrency(netAmount) * getNumberValue(taxRate)) / 100)
+}
+
+export const calculateIvaAmount = calculateTaxAmount
+
+export const calculateTotalAmount = (
+  netAmount,
+  taxRate = DEFAULT_TAX_RATE,
+  isTaxExempt = false,
+) => roundCurrency(roundCurrency(netAmount) + calculateTaxAmount(netAmount, taxRate, isTaxExempt))
+
+export const calculateGrossAmount = calculateTotalAmount
+
+export const calculateNetFromGross = (
+  grossAmount,
+  taxRate = DEFAULT_TAX_RATE,
+  isTaxExempt = false,
+) => {
+  const gross = roundCurrency(grossAmount)
+  if (isTaxExempt) return gross
+  return roundCurrency(gross / (1 + getNumberValue(taxRate) / 100))
+}
+
+export const calculatePendingAmount = (totalAmount, paidAmount) =>
+  Math.max(0, roundCurrency(totalAmount) - roundCurrency(paidAmount))
+
+export const calculateBalance = calculatePendingAmount
+
+const parseDateOnly = (date) => {
+  if (!date) return null
+  const parsedDate = new Date(date)
+  if (Number.isNaN(parsedDate.getTime())) return null
+  parsedDate.setHours(0, 0, 0, 0)
+  return parsedDate
+}
+
+export const getAutomaticPaymentStatus = ({
+  totalAmount = 0,
+  paidAmount = 0,
+  dueDate = '',
+  status = '',
+} = {}) => {
+  if (status === 'Anulado') return 'Anulado'
+
+  const total = roundCurrency(totalAmount)
+  const paid = roundCurrency(paidAmount)
+  const pending = calculatePendingAmount(total, paid)
+
+  if (total <= 0) return 'Sin pagar'
+  if (pending <= 0) return 'Pagado'
+  if (paid > 0 && pending > 0) return 'Pago parcial'
+
+  const parsedDueDate = parseDateOnly(dueDate)
+  if (parsedDueDate) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    if (parsedDueDate < today) return 'Vencido'
+  }
+
+  return 'Sin pagar'
+}
+
+export const getPaymentStatus = getAutomaticPaymentStatus
+
+export const calculateFinanceMovement = (movement = {}) => {
+  const isTaxExempt = Boolean(movement.isTaxExempt ?? movement.taxExempt)
+  const taxRate =
+    movement.taxRate === '' || movement.taxRate === undefined
+      ? getNumberValue(movement.ivaRate ?? DEFAULT_TAX_RATE)
+      : getNumberValue(movement.taxRate)
+  const netAmount = roundCurrency(movement.netAmount)
+  const taxAmount = calculateTaxAmount(netAmount, taxRate, isTaxExempt)
+  const totalAmount = calculateTotalAmount(netAmount, taxRate, isTaxExempt)
+  const paidAmount = Math.min(roundCurrency(movement.paidAmount), totalAmount)
+  const pendingAmount = calculatePendingAmount(totalAmount, paidAmount)
+  const calculatedStatus = getAutomaticPaymentStatus({
+    totalAmount,
+    paidAmount,
+    dueDate: movement.dueDate,
+    status: movement.status,
+  })
+
+  return {
+    taxRate,
+    ivaRate: taxRate,
+    isTaxExempt,
+    taxExempt: isTaxExempt,
+    netAmount,
+    taxAmount,
+    ivaAmount: taxAmount,
+    totalAmount,
+    paidAmount,
+    pendingAmount,
+    balanceAmount: pendingAmount,
+    calculatedStatus,
+  }
+}
+
+export const createAuditEntry = ({ action, user, details = '' } = {}) => ({
+  id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  action: action || 'Actualización',
+  details,
+  userName: user?.name || user?.responsibleName || '',
+  userEmail: user?.email || user?.responsibleEmail || '',
+  createdAt: new Date().toISOString(),
+})
+
+export const appendAuditLog = (auditLog = [], entry) => [
+  ...(Array.isArray(auditLog) ? auditLog : []),
+  entry || createAuditEntry(),
+]
+
+export const validateFinanceMovement = (movement = {}) => {
+  const errors = []
+  const calc = calculateFinanceMovement(movement)
+  const status = movement.status === 'Anulado' ? 'Anulado' : calc.calculatedStatus
+
+  if (!String(movement.type || '').trim()) errors.push('Selecciona si es ingreso o egreso.')
+  if (!String(movement.category || '').trim()) errors.push('Selecciona una categoría.')
+  if (!String(movement.description || '').trim()) errors.push('Ingresa una descripción.')
+  if (!String(movement.issueDate || '').trim()) errors.push('Ingresa fecha de emisión.')
+  if (calc.netAmount <= 0) errors.push('El monto neto debe ser mayor a cero.')
+  if (roundCurrency(movement.paidAmount) > calc.totalAmount) {
+    errors.push('El monto pagado no puede ser mayor al total.')
+  }
+  if (status === 'Pagado' && !String(movement.paymentDate || '').trim()) {
+    errors.push('Si está pagado, debe tener fecha de pago.')
+  }
+  if (status === 'Anulado' && !String(movement.observations || movement.notes || '').trim()) {
+    errors.push('Si está anulado, debe registrar una observación.')
+  }
+
+  const issueDate = parseDateOnly(movement.issueDate)
+  const dueDate = parseDateOnly(movement.dueDate)
+  if (issueDate && dueDate && dueDate < issueDate) {
+    errors.push('La fecha de vencimiento no puede ser anterior a la emisión.')
+  }
+
+  return errors
+}
+
+export const formatCurrency = (value) =>
   new Intl.NumberFormat('es-CL', {
     style: 'currency',
     currency: 'CLP',
     maximumFractionDigits: 0,
-  }).format(Number(value) || 0)
+  }).format(roundCurrency(value))
 
-const includesAny = (text, words) => {
-  const normalized = normalizeAssistantText(text)
-  return words.some((word) => normalized.includes(normalizeAssistantText(word)))
+export const formatDate = (date) => {
+  const parsedDate = parseDateOnly(date)
+  if (!parsedDate) return date ? String(date) : '-'
+  return new Intl.DateTimeFormat('es-CL').format(parsedDate)
 }
 
-const getCollection = (key) => {
-  const stored = readStorage(key, [])
-  return Array.isArray(stored) ? stored : []
+export const validateRut = (rut = '') => {
+  const cleanedRut = String(rut).replace(/\./g, '').replace(/-/g, '').trim().toLowerCase()
+  if (!/^[0-9]+[0-9k]$/.test(cleanedRut)) return false
+
+  const body = cleanedRut.slice(0, -1)
+  const verifier = cleanedRut.slice(-1)
+  let sum = 0
+  let multiplier = 2
+
+  for (let index = body.length - 1; index >= 0; index -= 1) {
+    sum += Number(body[index]) * multiplier
+    multiplier = multiplier === 7 ? 2 : multiplier + 1
+  }
+
+  const expected = 11 - (sum % 11)
+  const expectedVerifier = expected === 11 ? '0' : expected === 10 ? 'k' : String(expected)
+
+  return verifier === expectedVerifier
 }
 
-const buildSearchText = (record = {}) =>
-  Object.entries(record)
-    .filter(([, value]) => typeof value !== 'function')
-    .map(([key, value]) => `${key}: ${stringifySafe(value)}`)
-    .join(' ')
+export const getDaysUntilDue = (dueDate = '') => {
+  const parsedDueDate = parseDateOnly(dueDate)
+  if (!parsedDueDate) return null
 
-const getPrioritySearchText = (record = {}) =>
-  [
-    record.title,
-    record.name,
-    record.subject,
-    record.tema,
-    record.client,
-    record.cliente,
-    record.company,
-    record.empresa,
-    record.businessName,
-    record.razonSocial,
-    record.description,
-    record.descripcion,
-    record.requirements,
-    record.deliverables,
-    record.observations,
-    stringifySafe(record.items),
-    stringifySafe(record.technicalItems),
-  ]
-    .filter(Boolean)
-    .join(' ')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
-const getRecordTitle = (record, fallback = 'Registro') =>
-  record.title ||
-  record.name ||
-  record.quoteNumber ||
-  record.numeroCotizacion ||
-  record.tenderId ||
-  record.client ||
-  record.cliente ||
-  record.company ||
-  record.empresa ||
-  record.email ||
-  fallback
-
-const getWordVariants = (word = '') => {
-  const normalized = normalizeAssistantText(word)
-  const variants = new Set([normalized])
-
-  if (normalized.endsWith('es') && normalized.length > 4) {
-    variants.add(normalized.slice(0, -2))
-  }
-
-  if (normalized.endsWith('s') && normalized.length > 3) {
-    variants.add(normalized.slice(0, -1))
-  }
-
-  if (!normalized.endsWith('s')) {
-    variants.add(`${normalized}s`)
-  }
-
-  return Array.from(variants).filter(Boolean)
+  return Math.ceil((parsedDueDate.getTime() - today.getTime()) / 86400000)
 }
 
-const textContainsWordVariant = (text = '', word = '') => {
-  const normalizedText = normalizeAssistantText(text)
-  return getWordVariants(word).some((variant) => normalizedText.includes(variant))
-}
+export const summarizeMovements = (movements = []) =>
+  (Array.isArray(movements) ? movements : []).reduce(
+    (summary, movement) => {
+      const calc = calculateFinanceMovement(movement)
+      const isIncome = movement.type === 'Ingreso'
+      const isExpense = movement.type === 'Egreso'
 
-const getImportantWords = (question = '') =>
-  normalizeAssistantText(question)
-    .split(' ')
-    .map((word) => word.trim())
-    .filter((word) => word.length >= 3)
-    .filter((word) => !STOP_WORDS.includes(word))
+      summary.totalIncome += isIncome ? calc.totalAmount : 0
+      summary.totalExpenses += isExpense ? calc.totalAmount : 0
+      summary.receivable += isIncome ? calc.pendingAmount : 0
+      summary.payable += isExpense ? calc.pendingAmount : 0
+      summary.totalPaid += calc.paidAmount
+      summary.totalPending += calc.pendingAmount
+      summary.totalBalance += calc.pendingAmount
+      summary.cashFlow += (isIncome ? 1 : -1) * calc.paidAmount
+      summary.projectedFlow += (isIncome ? 1 : -1) * calc.totalAmount
+      summary.estimatedFlow += (isIncome ? 1 : -1) * calc.pendingAmount
 
-const isSellerQuestion = (question = '') => includesAny(question, SELLER_WORDS)
-
-const getEntityFromQuestion = (question = '') => {
-  const normalized = normalizeAssistantText(question)
-
-  const explicitPatterns = [
-    /para\s+(.+)$/,
-    /cliente\s+(.+)$/,
-    /empresa\s+(.+)$/,
-    /comprador\s+(.+)$/,
-    /de\s+(.+)$/,
-  ]
-
-  for (const pattern of explicitPatterns) {
-    const match = normalized.match(pattern)
-    if (match?.[1]) {
-      const cleaned = match[1]
-        .split(' ')
-        .filter((word) => !STOP_WORDS.includes(word))
-        .join(' ')
-        .trim()
-
-      if (cleaned) return cleaned
-    }
-  }
-
-  return getImportantWords(question).join(' ')
-}
-
-const scoreEntityRecord = (record, entity) => {
-  const words = getImportantWords(entity || '')
-  const fullText = buildSearchText(record)
-  const priorityText = getPrioritySearchText(record)
-
-  if (!words.length) return 0
-
-  return words.reduce((score, word) => {
-    if (textContainsWordVariant(priorityText, word)) return score + 4
-    if (textContainsWordVariant(fullText, word)) return score + 1
-    return score
-  }, 0)
-}
-
-const scoreSellerRecord = ({ record, question, module }) => {
-  const subjectWords = getImportantWords(question)
-  const priorityText = getPrioritySearchText(record)
-  const fullText = buildSearchText(record)
-
-  if (!subjectWords.length) return 0
-
-  const matchedSubjectWords = subjectWords.filter(
-    (word) => textContainsWordVariant(priorityText, word) || textContainsWordVariant(fullText, word),
-  )
-
-  if (!matchedSubjectWords.length) return 0
-
-  let score = matchedSubjectWords.reduce((sum, word) => {
-    if (textContainsWordVariant(priorityText, word)) return sum + 5
-    if (textContainsWordVariant(fullText, word)) return sum + 2
-    return sum
-  }, 0)
-
-  if (module === 'Cotizaciones') score += 5
-  if (module === 'Órdenes de trabajo') score += 4
-  if (module === 'Documentos') score += 1
-
-  return score
-}
-
-const getIntent = (question = '') => {
-  const text = normalizeAssistantText(question)
-
-  const wantsCount =
-    text.includes('cuantas') ||
-    text.includes('cuantos') ||
-    text.includes('cantidad') ||
-    text.includes('numero de') ||
-    text.includes('total de')
-
-  const wantsQuotes = includesAny(text, QUOTE_WORDS)
-  const wantsDocuments = includesAny(text, DOCUMENT_WORDS)
-  const wantsAdmin = includesAny(text, ADMIN_WORDS)
-  const wantsEconomic = includesAny(text, ECONOMIC_WORDS)
-
-  if (isSellerQuestion(question)) return 'seller_search'
-  if (wantsCount && wantsQuotes) return 'count_quotes'
-  if (wantsQuotes) return 'search_quotes'
-  if (wantsDocuments && wantsAdmin) return 'admin_documents'
-  if (wantsDocuments && wantsEconomic) return 'economic_documents'
-  if (wantsDocuments) return 'documents'
-
-  return 'general'
-}
-
-const getQuoteAmount = (quote = {}) =>
-  Number(
-    quote.total ||
-      quote.totalAmount ||
-      quote.grandTotal ||
-      quote.amount ||
-      quote.valorTotal ||
-      quote.netTotal ||
-      0,
-  ) || 0
-
-const getSellerFromRecord = (record = {}) => {
-  const createdByObject = typeof record.createdBy === 'object' ? record.createdBy : null
-
-  return (
-    record.sellerName ||
-    record.vendedor ||
-    record.seller ||
-    record.salesExecutive ||
-    record.createdByName ||
-    createdByObject?.name ||
-    record.requesterName ||
-    record.requestedBy ||
-    record.userName ||
-    record.assigneeName ||
-    ''
-  )
-}
-
-const getSellerLabel = (record = {}) => {
-  if (record.sellerName || record.vendedor || record.seller || record.salesExecutive) {
-    return 'Vendedor detectado'
-  }
-
-  if (record.createdByName || record.createdBy) return 'Creado por'
-  if (record.requesterName || record.requestedBy) return 'Solicitante detectado'
-  if (record.assigneeName) return 'Responsable asignado'
-
-  return 'Vendedor / solicitante'
-}
-
-const findByEntity = (items, entity) =>
-  items
-    .map((item) => ({ item, score: scoreEntityRecord(item, entity) }))
-    .filter((result) => result.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map((result) => result.item)
-
-const filterDocumentsByType = (documents, type) => {
-  if (type === 'admin') {
-    return documents.filter((document) =>
-      includesAny(buildSearchText(document), [
-        'administrativo',
-        'administrativa',
-        'legal',
-        'declaracion jurada',
-        'rut',
-        'certificado',
-        'representante legal',
-        'anexo administrativo',
-      ]),
-    )
-  }
-
-  if (type === 'economic') {
-    return documents.filter((document) =>
-      includesAny(buildSearchText(document), [
-        'economico',
-        'economica',
-        'oferta economica',
-        'anexo economico',
-        'valor unitario',
-        'valor total',
-        'cotizacion',
-        'precio',
-        'monto',
-        'pago',
-      ]),
-    )
-  }
-
-  return documents
-}
-
-const buildSellerAnswer = ({ question, collections, canViewFinance }) => {
-  const matches = collections
-    .flatMap((collection) =>
-      collection.items.map((record) => ({
-        module: collection.label,
-        record,
-        score: scoreSellerRecord({ record, question, module: collection.label }),
-      })),
-    )
-    .filter((match) => match.score >= 5)
-    .sort((a, b) => b.score - a.score)
-
-  if (!matches.length) {
-    return {
-      answer:
-        'No encontré registros suficientemente relacionados para identificar quién vendió, creó o solicitó eso. Puede que falte guardar el campo vendedor en la cotización o que la palabra buscada no esté en el registro.',
-      sources: [],
-    }
-  }
-
-  const lines = matches.slice(0, 8).map((match, index) => {
-    const record = match.record
-    const seller = getSellerFromRecord(record)
-    const amount = getQuoteAmount(record)
-
-    return [
-      `${index + 1}. ${getRecordTitle(record)}`,
-      `Módulo: ${match.module}`,
-      seller ? `${getSellerLabel(record)}: ${seller}` : 'Vendedor no registrado explícitamente',
-      record.client || record.cliente ? `Cliente: ${record.client || record.cliente}` : '',
-      record.company || record.empresa ? `Empresa: ${record.company || record.empresa}` : '',
-      record.status ? `Estado: ${record.status}` : '',
-      record.quoteNumber || record.numeroCotizacion
-        ? `N° cotización: ${record.quoteNumber || record.numeroCotizacion}`
-        : '',
-      canViewFinance && amount ? `Total: ${formatCurrency(amount)}` : '',
-      record.description || record.descripcion
-        ? `Descripción: ${String(record.description || record.descripcion).slice(0, 260)}`
-        : '',
-    ]
-      .filter(Boolean)
-      .join('\n')
-  })
-
-  return {
-    answer: `Busqué quién vendió, creó o solicitó registros relacionados con tu consulta.\n\n${lines.join(
-      '\n\n',
-    )}`,
-    sources: matches.slice(0, 8).map((match) => ({
-      module: match.module,
-      title: getRecordTitle(match.record),
-    })),
-  }
-}
-
-const buildQuoteAnswer = ({ entity, quotes, documents, canViewFinance }) => {
-  const totalAmount = quotes.reduce((sum, quote) => sum + getQuoteAmount(quote), 0)
-  const adminDocuments = filterDocumentsByType(documents, 'admin')
-  const economicDocuments = filterDocumentsByType(documents, 'economic')
-
-  const quoteLines = quotes.slice(0, 12).map((quote, index) => {
-    const amount = getQuoteAmount(quote)
-
-    return [
-      `${index + 1}. ${getRecordTitle(quote, 'Cotización')}`,
-      quote.quoteNumber || quote.numeroCotizacion ? `N° ${quote.quoteNumber || quote.numeroCotizacion}` : '',
-      quote.status ? `Estado: ${quote.status}` : '',
-      quote.date || quote.fecha ? `Fecha: ${quote.date || quote.fecha}` : '',
-      getSellerFromRecord(quote) ? `${getSellerLabel(quote)}: ${getSellerFromRecord(quote)}` : '',
-      canViewFinance && amount ? `Total: ${formatCurrency(amount)}` : '',
-    ]
-      .filter(Boolean)
-      .join(' · ')
-  })
-
-  const documentLines = documents.slice(0, 12).map((document, index) =>
-    [
-      `${index + 1}. ${getRecordTitle(document, 'Documento')}`,
-      document.type || document.documentType ? `Tipo: ${document.type || document.documentType}` : '',
-      document.status ? `Estado: ${document.status}` : '',
-    ]
-      .filter(Boolean)
-      .join(' · '),
-  )
-
-  return {
-    answer: [
-      `Encontré ${quotes.length} cotización${quotes.length === 1 ? '' : 'es'} relacionada${
-        quotes.length === 1 ? '' : 's'
-      } con "${entity}".`,
-      canViewFinance
-        ? `Monto total detectado: ${formatCurrency(totalAmount)}.`
-        : 'No muestro montos porque tu perfil no tiene permiso financiero.',
-      '',
-      quotes.length ? `Cotizaciones encontradas:\n${quoteLines.join('\n')}` : 'No encontré cotizaciones asociadas.',
-      '',
-      documents.length
-        ? `Documentos asociados:\n${documentLines.join('\n')}`
-        : 'No encontré documentos asociados directamente.',
-      '',
-      `Documentos administrativos detectados: ${adminDocuments.length}.`,
-      `Documentos económicos detectados: ${economicDocuments.length}.`,
-      '',
-      adminDocuments.length
-        ? `Administrativos principales:\n${adminDocuments
-            .slice(0, 6)
-            .map((doc, index) => `${index + 1}. ${getRecordTitle(doc, 'Documento administrativo')}`)
-            .join('\n')}`
-        : 'No encontré documentos administrativos asociados.',
-      '',
-      economicDocuments.length
-        ? `Económicos principales:\n${economicDocuments
-            .slice(0, 6)
-            .map((doc, index) => `${index + 1}. ${getRecordTitle(doc, 'Documento económico')}`)
-            .join('\n')}`
-        : 'No encontré documentos económicos asociados.',
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    sources: [
-      ...quotes.slice(0, 6).map((quote) => ({
-        module: 'Cotizaciones',
-        title: getRecordTitle(quote, 'Cotización'),
-      })),
-      ...documents.slice(0, 6).map((document) => ({
-        module: 'Documentos',
-        title: getRecordTitle(document, 'Documento'),
-      })),
-    ],
-  }
-}
-
-const buildGeneralAnswer = ({ question, collections, canViewFinance }) => {
-  const words = getImportantWords(question)
-
-  const matches = collections
-    .flatMap((collection) =>
-      collection.items.map((record) => {
-        const text = normalizeAssistantText(buildSearchText(record))
-        const score = words.reduce(
-          (sum, word) => (textContainsWordVariant(text, word) ? sum + 1 : sum),
-          0,
-        )
-
-        return {
-          module: collection.label,
-          record,
-          score,
-        }
-      }),
-    )
-    .filter((match) => match.score > 0)
-    .sort((a, b) => b.score - a.score)
-
-  if (!matches.length) {
-    return {
-      answer:
-        'No encontré información suficiente en los módulos permitidos. Prueba con otra forma de preguntar o revisa si la información está guardada.',
-      sources: [],
-    }
-  }
-
-  const lines = matches.slice(0, 8).map((match, index) => {
-    const record = match.record
-    const amount = getQuoteAmount(record)
-
-    return [
-      `${index + 1}. ${getRecordTitle(record)}`,
-      `Módulo: ${match.module}`,
-      record.status ? `Estado: ${record.status}` : '',
-      record.client || record.cliente ? `Cliente: ${record.client || record.cliente}` : '',
-      record.company || record.empresa ? `Empresa: ${record.company || record.empresa}` : '',
-      record.buyer ? `Comprador: ${record.buyer}` : '',
-      record.closingDate ? `Cierre: ${record.closingDate}` : '',
-      canViewFinance && amount ? `Total: ${formatCurrency(amount)}` : '',
-      record.summary ? `Resumen: ${String(record.summary).slice(0, 320)}` : '',
-      record.description || record.descripcion
-        ? `Descripción: ${String(record.description || record.descripcion).slice(0, 320)}`
-        : '',
-    ]
-      .filter(Boolean)
-      .join('\n')
-  })
-
-  return {
-    answer: `Encontré estos resultados relacionados:\n\n${lines.join('\n\n')}`,
-    sources: matches.slice(0, 8).map((match) => ({
-      module: match.module,
-      title: getRecordTitle(match.record),
-    })),
-  }
-}
-
-export const answerAssistantQuestion = ({ question, hasPermission, canViewFinance }) => {
-  if (includesAny(question, FINANCE_WORDS) && !canViewFinance) {
-    return {
-      answer:
-        'No tienes permiso para consultar información financiera, costos, márgenes, valores, pagos o presupuestos internos.',
-      sources: [],
-    }
-  }
-
-  const intent = getIntent(question)
-  const entity = getEntityFromQuestion(question)
-
-  const collections = []
-
-  if (hasPermission('quotes.view')) {
-    collections.push({
-      scope: 'quotes',
-      label: 'Cotizaciones',
-      items: getCollection(STORAGE_KEYS.quotes),
-    })
-  }
-
-  if (hasPermission('documents.view')) {
-    collections.push({
-      scope: 'documents',
-      label: 'Documentos',
-      items: getCollection(STORAGE_KEYS.documents),
-    })
-  }
-
-  if (hasPermission('tenders.view')) {
-    collections.push({
-      scope: 'tenders',
-      label: 'Licitaciones',
-      items: getCollection(TENDER_STORAGE_KEY),
-    })
-  }
-
-  if (hasPermission('workorders.view')) {
-    collections.push({
-      scope: 'workorders',
-      label: 'Órdenes de trabajo',
-      items: getCollection(WORK_ORDER_STORAGE_KEY),
-    })
-  }
-
-  if (hasPermission('clients.view')) {
-    collections.push({
-      scope: 'clients',
-      label: 'Clientes',
-      items: getCollection(STORAGE_KEYS.clients),
-    })
-  }
-
-  if (hasPermission('materials.view')) {
-    collections.push({
-      scope: 'materials',
-      label: 'Materiales',
-      items: getCollection(STORAGE_KEYS.materials),
-    })
-  }
-
-  if (hasPermission('products.view')) {
-    collections.push({
-      scope: 'products',
-      label: 'Productos / Servicios',
-      items: getCollection(STORAGE_KEYS.products),
-    })
-  }
-
-  const quotes = collections.find((collection) => collection.scope === 'quotes')?.items || []
-  const documents = collections.find((collection) => collection.scope === 'documents')?.items || []
-
-  if (intent === 'seller_search') {
-    const sellerCollections = collections.filter((collection) =>
-      ['Cotizaciones', 'Órdenes de trabajo', 'Documentos'].includes(collection.label),
-    )
-
-    return buildSellerAnswer({
-      question,
-      collections: sellerCollections,
-      canViewFinance,
-    })
-  }
-
-  if (intent === 'count_quotes' || intent === 'search_quotes') {
-    if (!hasPermission('quotes.view')) {
-      return {
-        answer: 'No tienes permiso para consultar cotizaciones.',
-        sources: [],
+      if (calc.calculatedStatus === 'Vencido') summary.overdue += 1
+      if (['Sin pagar', 'Pago parcial', 'Vencido'].includes(calc.calculatedStatus)) {
+        summary.pending += 1
       }
-    }
+      if (calc.calculatedStatus === 'Pagado') summary.paid += 1
+      if (calc.calculatedStatus === 'Anulado') summary.voided += 1
 
-    const relatedQuotes = findByEntity(quotes, entity)
-    const relatedDocuments = hasPermission('documents.view') ? findByEntity(documents, entity) : []
-
-    return buildQuoteAnswer({
-      entity: entity || question,
-      quotes: relatedQuotes,
-      documents: relatedDocuments,
-      canViewFinance,
-    })
-  }
-
-  if (intent === 'admin_documents' || intent === 'economic_documents' || intent === 'documents') {
-    if (!hasPermission('documents.view')) {
-      return {
-        answer: 'No tienes permiso para consultar documentos.',
-        sources: [],
-      }
-    }
-
-    const relatedDocuments = findByEntity(documents, entity || question)
-
-    const filteredDocuments =
-      intent === 'admin_documents'
-        ? filterDocumentsByType(relatedDocuments, 'admin')
-        : intent === 'economic_documents'
-          ? filterDocumentsByType(relatedDocuments, 'economic')
-          : relatedDocuments
-
-    if (!filteredDocuments.length) {
-      return {
-        answer: `No encontré documentos asociados a "${entity || question}" en los módulos permitidos.`,
-        sources: [],
-      }
-    }
-
-    return {
-      answer: `Encontré ${filteredDocuments.length} documento${
-        filteredDocuments.length === 1 ? '' : 's'
-      } relacionado${filteredDocuments.length === 1 ? '' : 's'}:\n\n${filteredDocuments
-        .slice(0, 12)
-        .map((document, index) => `${index + 1}. ${getRecordTitle(document, 'Documento')}`)
-        .join('\n')}`,
-      sources: filteredDocuments.slice(0, 10).map((document) => ({
-        module: 'Documentos',
-        title: getRecordTitle(document, 'Documento'),
-      })),
-    }
-  }
-
-  return buildGeneralAnswer({
-    question,
-    collections,
-    canViewFinance,
-  })
-}
+      return summary
+    },
+    {
+      totalIncome: 0,
+      totalExpenses: 0,
+      receivable: 0,
+      payable: 0,
+      totalPaid: 0,
+      totalPending: 0,
+      totalBalance: 0,
+      cashFlow: 0,
+      projectedFlow: 0,
+      estimatedFlow: 0,
+      overdue: 0,
+      pending: 0,
+      paid: 0,
+      voided: 0,
+    },
+  )

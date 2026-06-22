@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Rubik ERP",
+    "slug": "rubik-erp",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "cl.rubikcreaciones.erp"
+    },
+    "extra": {
+      "apiUrl": "http://localhost:4300/api"
+    }
+  }
+}

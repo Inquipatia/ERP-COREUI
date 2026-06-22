@@ -1,16 +1,84 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { apiCollections } from '../services/apiClient'
 
 export const STORAGE_KEYS = {
+  currentUser: 'rubik.erp.currentUser',
+  users: 'rubik.erp.users',
   clients: 'rubik.erp.clients',
   materials: 'rubik.erp.materials',
   products: 'rubik.erp.products',
   quotes: 'rubik.erp.quotes',
   documents: 'rubik.erp.documents',
+  tenders: 'rubik.erp.tenders',
+  workOrders: 'rubik.erp.workOrders',
   commercialSettings: 'rubik.erp.commercialSettings',
+  financeMovements: 'rubik.erp.finance.movements',
+  suppliers: 'rubik.erp.finance.suppliers',
+  expenses: 'rubik.erp.finance.expenses',
   aiChatHistories: 'rubik.erp.aiChatHistories',
 }
 
 const canUseLocalStorage = () => typeof window !== 'undefined' && Boolean(window.localStorage)
+
+const API_SYNC_BY_STORAGE_KEY = {
+  [STORAGE_KEYS.users]: 'users',
+  [STORAGE_KEYS.clients]: 'clients',
+  [STORAGE_KEYS.quotes]: 'quotes',
+  [STORAGE_KEYS.documents]: 'documents',
+  [STORAGE_KEYS.tenders]: 'tenders',
+  [STORAGE_KEYS.workOrders]: 'workOrders',
+  [STORAGE_KEYS.financeMovements]: 'financeMovements',
+  [STORAGE_KEYS.suppliers]: 'suppliers',
+}
+
+const DEFAULT_API_REFRESH_INTERVAL = 15000
+
+const canSyncCollectionWithApi = (key, value) =>
+  Boolean(API_SYNC_BY_STORAGE_KEY[key]) && Array.isArray(value)
+
+const getCollectionItemKey = (item = {}) => String(item.id || '')
+
+const collectionItemChanged = (previousItem, nextItem) =>
+  JSON.stringify(previousItem || {}) !== JSON.stringify(nextItem || {})
+
+const syncCollectionDiffToApi = async (key, previousValue = [], nextValue = []) => {
+  if (!canSyncCollectionWithApi(key, nextValue)) return
+
+  const resource = API_SYNC_BY_STORAGE_KEY[key]
+  const previousItems = Array.isArray(previousValue) ? previousValue : []
+  const nextItems = Array.isArray(nextValue) ? nextValue : []
+  const previousById = new Map(previousItems.map((item) => [getCollectionItemKey(item), item]))
+  const nextById = new Map(nextItems.map((item) => [getCollectionItemKey(item), item]))
+
+  const operations = []
+
+  previousById.forEach((previousItem, itemId) => {
+    if (!itemId || nextById.has(itemId)) return
+    operations.push(apiCollections.remove(resource, itemId))
+  })
+
+  nextItems.forEach((nextItem) => {
+    const itemId = getCollectionItemKey(nextItem)
+
+    if (!itemId || !previousById.has(itemId)) {
+      operations.push(apiCollections.create(resource, nextItem))
+      return
+    }
+
+    const previousItem = previousById.get(itemId)
+    if (collectionItemChanged(previousItem, nextItem)) {
+      operations.push(apiCollections.update(resource, itemId, nextItem))
+    }
+  })
+
+  if (operations.length === 0) return
+
+  try {
+    await Promise.all(operations)
+  } catch (error) {
+    console.warn(`API sync failed for ${key}. Using localStorage fallback.`, error)
+  }
+}
 
 export const createLocalId = (prefix) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -112,10 +180,104 @@ export const seedStorage = (key, initialValue) => {
 
 export const useLocalStorageState = (key, initialValue) => {
   const [value, setValue] = useState(() => seedStorage(key, initialValue))
+  const [apiState, setApiState] = useState(() => ({
+    loading: Boolean(API_SYNC_BY_STORAGE_KEY[key]),
+    refreshing: false,
+    error: '',
+  }))
+  const apiLoadCompletedRef = useRef(false)
+  const isMountedRef = useRef(true)
 
   useEffect(() => {
     writeStorage(key, value)
   }, [key, value])
 
-  return [value, setValue]
+  useEffect(
+    () => () => {
+      isMountedRef.current = false
+    },
+    [],
+  )
+
+  const reload = useCallback(
+    async ({ silent = false } = {}) => {
+      const resource = API_SYNC_BY_STORAGE_KEY[key]
+      if (!resource) return []
+
+      setApiState((currentState) => ({
+        ...currentState,
+        loading: !apiLoadCompletedRef.current && !silent,
+        refreshing: apiLoadCompletedRef.current || silent,
+        error: '',
+      }))
+
+      try {
+        const items = await apiCollections.list(resource)
+        if (!isMountedRef.current || !Array.isArray(items)) return items
+        apiLoadCompletedRef.current = true
+        setValue(items)
+        writeStorage(key, items)
+        setApiState({ loading: false, refreshing: false, error: '' })
+        return items
+      } catch (error) {
+        if (!isMountedRef.current) return []
+        apiLoadCompletedRef.current = true
+        setApiState({
+          loading: false,
+          refreshing: false,
+          error: 'No se pudo conectar con la API',
+        })
+        console.warn(`API load failed for ${key}. Using localStorage fallback.`, error)
+        return []
+      }
+    },
+    [key],
+  )
+
+  useEffect(() => {
+    const resource = API_SYNC_BY_STORAGE_KEY[key]
+    if (!resource) return undefined
+
+    void reload()
+
+    const refreshTimer = window.setInterval(() => {
+      void reload({ silent: true })
+    }, DEFAULT_API_REFRESH_INTERVAL)
+
+    const handleFocus = () => {
+      void reload({ silent: true })
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void reload({ silent: true })
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(refreshTimer)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [key, reload])
+
+  const setSyncedValue = (nextValueOrUpdater) => {
+    setValue((previousValue) => {
+      const nextValue =
+        typeof nextValueOrUpdater === 'function'
+          ? nextValueOrUpdater(previousValue)
+          : nextValueOrUpdater
+
+      if (apiLoadCompletedRef.current && canSyncCollectionWithApi(key, nextValue)) {
+        void syncCollectionDiffToApi(key, previousValue, nextValue)
+      }
+
+      return nextValue
+    })
+  }
+
+  return [value, setSyncedValue, { ...apiState, reload }]
 }
