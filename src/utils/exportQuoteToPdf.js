@@ -6,6 +6,8 @@ const PRINT_FALLBACK_MESSAGE =
   'Servicio PDF no disponible. Se abrio una version imprimible para guardar como PDF.'
 
 const PDF_REQUEST_TIMEOUT_MS = 12000
+const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+const PDF_CONTENT_TYPE = 'application/pdf'
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('es-CL', {
@@ -22,14 +24,68 @@ const escapeHtml = (value = '') =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
 
-const getFileName = (quoteData) => {
+const getFileName = (quoteData, extension = 'pdf') => {
   const quoteNumber =
     quoteData?.quote?.quoteNumber ||
     quoteData?.quoteData?.quoteNumber ||
     quoteData?.quoteNumber ||
     '8103'
 
-  return `Cotizacion-Rubik-${quoteNumber}.pdf`
+  return `Cotizacion-Rubik-${quoteNumber}.${extension}`
+}
+
+const getFileExtensionFromContentType = (contentType = '') => {
+  const normalizedContentType = contentType.toLowerCase()
+
+  if (normalizedContentType.includes(XLSX_CONTENT_TYPE)) {
+    return 'xlsx'
+  }
+
+  if (normalizedContentType.includes(PDF_CONTENT_TYPE)) {
+    return 'pdf'
+  }
+
+  return 'xlsx'
+}
+
+const getFileNameFromContentDisposition = (contentDisposition = '') => {
+  const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+
+  if (encodedMatch?.[1]) {
+    return decodeURIComponent(encodedMatch[1].replace(/"/g, '').trim())
+  }
+
+  const match = contentDisposition.match(/filename="?([^";]+)"?/i)
+
+  return match?.[1]?.trim() || ''
+}
+
+const ensureFileExtension = (fileName, extension) => {
+  const safeExtension = extension.replace(/^\./, '')
+  const normalizedFileName = String(fileName || '').trim()
+
+  if (!normalizedFileName) {
+    return ''
+  }
+
+  if (normalizedFileName.toLowerCase().endsWith(`.${safeExtension}`)) {
+    return normalizedFileName
+  }
+
+  return normalizedFileName.replace(/\.(pdf|xlsx)$/i, '') + `.${safeExtension}`
+}
+
+const getDownloadFileName = (response, quoteData) => {
+  const contentDisposition = response.headers.get('content-disposition') || ''
+  const contentType = response.headers.get('content-type') || ''
+  const headerFileName = getFileNameFromContentDisposition(contentDisposition)
+  const extension = getFileExtensionFromContentType(contentType)
+
+  if (headerFileName) {
+    return ensureFileExtension(headerFileName, extension)
+  }
+
+  return getFileName(quoteData, extension)
 }
 
 const getItemQuantity = (item) => Number(item?.quantity ?? item?.cantidad ?? 0) || 0
@@ -275,20 +331,25 @@ const openPrintableFallback = (quoteData) => {
   }
 }
 
-const downloadPdfBlob = async (response, quoteData) => {
+const downloadQuoteBlob = async (response, quoteData) => {
   const blob = await response.blob()
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
 
   link.href = url
-  link.download = getFileName(quoteData)
+  link.download = getDownloadFileName(response, quoteData)
   document.body.appendChild(link)
   link.click()
   link.remove()
 
   window.URL.revokeObjectURL(url)
 
-  return { fallback: null, ok: true }
+  return {
+    contentType: response.headers.get('content-type') || '',
+    fallback: null,
+    fileName: link.download,
+    ok: true,
+  }
 }
 
 export const exportQuoteToPdf = async (quoteData) => {
@@ -311,23 +372,21 @@ export const exportQuoteToPdf = async (quoteData) => {
 
     const contentType = response.headers.get('content-type') || ''
 
+    if (response.ok) {
+      return downloadQuoteBlob(response, quoteData)
+    }
+
     if (contentType.includes('application/json')) {
-      const data = await response.json().catch(() => null)
+      const data = await response.clone().json().catch(() => null)
 
       if (data?.fallback === 'print') {
         return openPrintableFallback(quoteData)
       }
 
-      if (!response.ok) {
-        throw new Error(data?.message || data?.error || 'No se pudo exportar la cotizacion a PDF.')
-      }
+      throw new Error(data?.message || data?.error || 'No se pudo exportar la cotizacion a PDF.')
     }
 
-    if (!response.ok) {
-      throw new Error('No se pudo exportar la cotizacion a PDF.')
-    }
-
-    return downloadPdfBlob(response, quoteData)
+    throw new Error('No se pudo exportar la cotizacion a PDF.')
   } catch (error) {
     console.error('PDF API unavailable, using printable fallback:', error)
     return openPrintableFallback(quoteData)

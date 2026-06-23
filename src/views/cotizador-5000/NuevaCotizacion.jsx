@@ -253,6 +253,7 @@ const NuevaCotizacion = () => {
   const [generatedQuote, setGeneratedQuote] = useState(null)
   const [validationError, setValidationError] = useState('')
   const [saveMessage, setSaveMessage] = useState('')
+  const [exportWarning, setExportWarning] = useState('')
   const [isExportingExcel, setIsExportingExcel] = useState(false)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
 
@@ -515,6 +516,7 @@ const NuevaCotizacion = () => {
 
     if (error) {
       setValidationError(error)
+      setExportWarning('')
       setSaveMessage('')
       return
     }
@@ -530,6 +532,7 @@ const NuevaCotizacion = () => {
     setStoredDocuments((currentDocuments) => upsertDocument(currentDocuments, savedDocument))
     setGeneratedQuote(payload)
     setValidationError('')
+    setExportWarning('')
     setSaveMessage(
       `Cotización ${savedQuote.quoteNumber} ${
         quoteAlreadyExists ? 'actualizada' : 'guardada'
@@ -543,10 +546,12 @@ const NuevaCotizacion = () => {
     if (error) {
       setGeneratedQuote(null)
       setValidationError(error)
+      setExportWarning('')
       return
     }
 
     setValidationError('')
+    setExportWarning('')
     setSaveMessage('')
     setGeneratedQuote(payload)
   }
@@ -560,10 +565,12 @@ const NuevaCotizacion = () => {
 
     if (error) {
       setValidationError(error)
+      setExportWarning('')
       return
     }
 
     setValidationError('')
+    setExportWarning('')
     setGeneratedQuote(payload)
     setIsExportingExcel(true)
 
@@ -583,11 +590,13 @@ const NuevaCotizacion = () => {
 
     if (error) {
       setValidationError(error)
-      alert(error)
+      setExportWarning('')
       return
     }
 
     setValidationError('')
+    setExportWarning('')
+    setSaveMessage('')
     setGeneratedQuote(payload)
     setIsExportingPdf(true)
 
@@ -595,15 +604,23 @@ const NuevaCotizacion = () => {
       const { exportQuoteToPdf } = await import('../../utils/exportQuoteToPdf')
       const result = await exportQuoteToPdf(payload)
 
+      if (result?.ok === true && result?.fallback !== 'print') {
+        setValidationError('')
+        setExportWarning('')
+        setSaveMessage('Cotización generada desde plantilla correctamente.')
+        return
+      }
+
       if (result?.fallback === 'print') {
-        setValidationError(result.message)
-        alert(result.message)
+        setValidationError('')
+        setExportWarning(result.message || 'Se abrió una versión imprimible como respaldo.')
+        setSaveMessage('')
       }
     } catch (error) {
       console.error('Error exporting quote to PDF:', error)
       const message = error.message || 'No se pudo exportar la cotizacion a PDF.'
       setValidationError(message)
-      alert(message)
+      setExportWarning('')
     } finally {
       setIsExportingPdf(false)
     }
@@ -968,6 +985,7 @@ const NuevaCotizacion = () => {
                   <strong>{formatCurrency(currentAmounts.total)}</strong>
                 </div>
                 {validationError && <CAlert color="danger">{validationError}</CAlert>}
+                {exportWarning && <CAlert color="warning">{exportWarning}</CAlert>}
                 {saveMessage && (
                   <CAlert color="success" className="py-2">
                     {saveMessage}
