@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   CAlert,
   CBadge,
@@ -30,8 +30,9 @@ import {
   CTableRow,
 } from '@coreui/react'
 import { useAuth } from '../../../context/AuthContext'
+import { get as apiGet, post as apiPost, put as apiPut, remove as apiDelete } from '../../../services/apiClient'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
-import { useLocalStorageState } from '../../../utils/storage'
+import { readStorage, writeStorage } from '../../../utils/storage'
 import {
   analyzeTenderText,
   emptyTender,
@@ -49,6 +50,23 @@ const TENDER_ANALYZER_API_URL =
   import.meta.env.VITE_RUBIK_TENDER_ANALYZER_URL ||
   `${API_BASE_URL}/tender-analyzer/analyze-documents`
 const SUPPORTED_TENDER_DOCUMENT_EXTENSIONS = '.pdf,.xlsx,.xls,.docx,.txt,.jpg,.jpeg,.png'
+
+const getStoredTenders = () => {
+  const storedTenders = readStorage(TENDER_STORAGE_KEY, null)
+
+  return Array.isArray(storedTenders)
+    ? storedTenders.map(normalizeTender)
+    : mockTenders.map(normalizeTender)
+}
+
+const getApiItems = (payload) => {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.items)) return payload.items
+  if (Array.isArray(payload?.tenders)) return payload.tenders
+  if (Array.isArray(payload?.data)) return payload.data
+
+  return []
+}
 
 const emptyFilters = {
   search: '',
@@ -352,10 +370,8 @@ const Licitaciones = () => {
       area: currentUser.area,
     }
     : null
-  const [tenders, setTenders] = useLocalStorageState(
-    TENDER_STORAGE_KEY,
-    mockTenders.map(normalizeTender),
-  )
+  const [tenders, setTenders] = useState(getStoredTenders)
+  const [isApiFallback, setIsApiFallback] = useState(false)
   const [filters, setFilters] = useState(emptyFilters)
   const [visible, setVisible] = useState(false)
   const [selectedTender, setSelectedTender] = useState(null)
@@ -366,6 +382,39 @@ const Licitaciones = () => {
   const [selectedFiles, setSelectedFiles] = useState([])
   const [analysisWarnings, setAnalysisWarnings] = useState([])
   const [isAnalyzingDocuments, setIsAnalyzingDocuments] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadTendersFromApi = async () => {
+      try {
+        const payload = await apiGet('/tenders')
+        const apiTenders = getApiItems(payload).map(normalizeTender)
+
+        if (!isMounted) return
+
+        setTenders(apiTenders)
+        writeStorage(TENDER_STORAGE_KEY, apiTenders)
+        setIsApiFallback(false)
+      } catch (loadError) {
+        console.warn('API tenders unavailable; using local fallback.', loadError)
+
+        if (isMounted) {
+          setIsApiFallback(true)
+        }
+      }
+    }
+
+    loadTendersFromApi()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    writeStorage(TENDER_STORAGE_KEY, tenders.map(normalizeTender))
+  }, [tenders])
 
   const normalizedTenders = useMemo(() => tenders.map(normalizeTender), [tenders])
   const filteredTenders = useMemo(
@@ -533,7 +582,7 @@ const Licitaciones = () => {
     }
   }
 
-  const handleReanalyzeSavedTender = (tender) => {
+  const handleReanalyzeSavedTender = async (tender) => {
     if (!tender.sourceText?.trim()) {
       setMessage('Esta licitación no tiene texto fuente para reanalizar.')
       return
@@ -548,12 +597,29 @@ const Licitaciones = () => {
       updatedAt: new Date().toISOString(),
     })
 
-    setTenders((currentTenders) =>
-      currentTenders.map((currentTender) =>
-        currentTender.id === tender.id ? updatedTender : currentTender,
-      ),
-    )
-    setSelectedTender(updatedTender)
+    try {
+      const savedTender = normalizeTender(await apiPut(`/tenders/${tender.id}`, updatedTender))
+      setTenders((currentTenders) =>
+        currentTenders.map((currentTender) =>
+          currentTender.id === tender.id ? savedTender : currentTender,
+        ),
+      )
+      setSelectedTender(savedTender)
+      setIsApiFallback(false)
+      setMessage('Licitación reanalizada y persistida en la API.')
+      return
+    } catch (saveError) {
+      console.error('Error guardando reanalisis de licitacion en API:', saveError)
+      setTenders((currentTenders) =>
+        currentTenders.map((currentTender) =>
+          currentTender.id === tender.id ? updatedTender : currentTender,
+        ),
+      )
+      setSelectedTender(updatedTender)
+      setIsApiFallback(true)
+      setMessage('Licitación reanalizada localmente porque la API no respondió.')
+      return
+    }
     setMessage('Licitación reanalizada con los documentos/texto fuente guardados.')
   }
 
@@ -566,7 +632,7 @@ const Licitaciones = () => {
     return ''
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
 
     const validationError = validateTender()
@@ -586,6 +652,28 @@ const Licitaciones = () => {
       updatedAt: new Date().toISOString(),
     })
 
+    try {
+      const savedTender = normalizeTender(
+        editingId ? await apiPut(`/tenders/${editingId}`, payload) : await apiPost('/tenders', payload),
+      )
+
+      setTenders((currentTenders) => {
+        if (editingId) {
+          return currentTenders.map((tender) => (tender.id === editingId ? savedTender : tender))
+        }
+
+        return [savedTender, ...currentTenders]
+      })
+
+      setIsApiFallback(false)
+      setMessage(editingId ? 'Licitación actualizada en la API.' : 'Licitación guardada en la API.')
+      closeModal()
+      return
+    } catch (saveError) {
+      console.error('Error guardando licitacion en API:', saveError)
+      setIsApiFallback(true)
+    }
+
     setTenders((currentTenders) => {
       if (editingId) {
         return currentTenders.map((tender) => (tender.id === editingId ? payload : tender))
@@ -598,12 +686,23 @@ const Licitaciones = () => {
     closeModal()
   }
 
-  const handleDelete = (tenderId) => {
+  const handleDelete = async (tenderId) => {
+    try {
+      await apiDelete(`/tenders/${tenderId}`)
+      setTenders((currentTenders) => currentTenders.filter((tender) => tender.id !== tenderId))
+      setIsApiFallback(false)
+      setMessage('Licitación eliminada de la API.')
+      return
+    } catch (deleteError) {
+      console.error('Error eliminando licitacion en API:', deleteError)
+      setIsApiFallback(true)
+    }
+
     setTenders((currentTenders) => currentTenders.filter((tender) => tender.id !== tenderId))
     setMessage('Licitación eliminada localmente.')
   }
 
-  const handleDuplicate = (tender) => {
+  const handleDuplicate = async (tender) => {
     const duplicatedTender = normalizeTender({
       ...tender,
       id: undefined,
@@ -613,6 +712,17 @@ const Licitaciones = () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
+
+    try {
+      const savedTender = normalizeTender(await apiPost('/tenders', duplicatedTender))
+      setTenders((currentTenders) => [savedTender, ...currentTenders])
+      setIsApiFallback(false)
+      setMessage('Licitación duplicada en la API.')
+      return
+    } catch (duplicateError) {
+      console.error('Error duplicando licitacion en API:', duplicateError)
+      setIsApiFallback(true)
+    }
 
     setTenders((currentTenders) => [duplicatedTender, ...currentTenders])
     setMessage('Licitación duplicada.')
@@ -811,6 +921,12 @@ const Licitaciones = () => {
             {message && (
               <CAlert color="info" dismissible onClose={() => setMessage('')}>
                 {message}
+              </CAlert>
+            )}
+
+            {isApiFallback && (
+              <CAlert color="warning">
+                Trabajando en modo local porque la API no respondió.
               </CAlert>
             )}
 

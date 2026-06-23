@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   CAlert,
   CBadge,
@@ -31,6 +31,7 @@ import {
 } from '@coreui/react'
 import { CChartBar, CChartDoughnut } from '@coreui/react-chartjs'
 import { useAuth } from '../../../context/AuthContext'
+import { get as apiGet } from '../../../services/apiClient'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 
 import {
@@ -96,16 +97,142 @@ const formatDate = (date) => {
 const isQuoteDocument = (document) =>
   document.tipoDocumento === 'Cotización' || document.tipoDocumento === 'Cotizaci¢n'
 
+const getPayloadRoot = (payload) => payload?.data || payload || {}
+
+const getNestedValue = (source, path) =>
+  String(path)
+    .split('.')
+    .reduce((currentValue, key) => currentValue?.[key], source)
+
+const normalizeDocumentsPayload = (payload) => {
+  if (Array.isArray(payload)) return payload
+
+  const rootPayload = getPayloadRoot(payload)
+  const possibleCollections = [
+    rootPayload.items,
+    rootPayload.documents,
+    rootPayload.records,
+    rootPayload.results,
+    rootPayload.data,
+  ]
+
+  return possibleCollections.find(Array.isArray) || []
+}
+
+const normalizeStatsEntries = (value) => {
+  if (!value) return []
+
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => {
+        if (Array.isArray(entry)) {
+          return { label: entry[0] || 'Sin clasificar', count: getNumberValue(entry[1]) }
+        }
+
+        if (entry && typeof entry === 'object') {
+          return {
+            label:
+              entry.label ||
+              entry.name ||
+              entry.estado ||
+              entry.status ||
+              entry.tipoDocumento ||
+              entry.type ||
+              entry.key ||
+              'Sin clasificar',
+            count: getNumberValue(entry.count ?? entry.value ?? entry.total),
+          }
+        }
+
+        return { label: 'Sin clasificar', count: 0 }
+      })
+      .filter((item) => item.count > 0)
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .map(([label, count]) => ({ label: label || 'Sin clasificar', count: getNumberValue(count) }))
+      .filter((item) => item.count > 0)
+  }
+
+  return []
+}
+
+const pickStatsEntries = (payload, paths = []) => {
+  const rootPayload = getPayloadRoot(payload)
+
+  for (const path of paths) {
+    const value = getNestedValue(rootPayload, path)
+    const entries = normalizeStatsEntries(value)
+
+    if (entries.length > 0) return entries
+  }
+
+  return []
+}
+
 const Documentos = () => {
   const { hasPermission } = useAuth()
   const canManageDocuments = hasPermission('documents.manage')
-  const [documents, setDocuments] = useDocumentStorage()
+  const [localDocuments, setLocalDocuments] = useDocumentStorage()
   const [, setQuotes] = useLocalStorageState(STORAGE_KEYS.quotes, [])
+  const [apiDocuments, setApiDocuments] = useState(null)
+  const [apiStats, setApiStats] = useState(null)
+  const [isApiFallback, setIsApiFallback] = useState(false)
   const [filters, setFilters] = useState(emptyFilters)
   const [selectedDocument, setSelectedDocument] = useState(null)
   const [editingDocument, setEditingDocument] = useState(null)
   const [message, setMessage] = useState('')
   const [exportingDocumentId, setExportingDocumentId] = useState(null)
+  const documents = apiDocuments !== null ? apiDocuments : localDocuments
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadDocumentsFromApi = async () => {
+      const [documentsResult, statsResult] = await Promise.allSettled([
+        apiGet('/documents'),
+        apiGet('/documents/stats'),
+      ])
+
+      if (!isMounted) return
+
+      if (documentsResult.status === 'fulfilled') {
+        const normalizedDocuments = normalizeDocumentsPayload(documentsResult.value).map(normalizeDocument)
+        setApiDocuments(normalizedDocuments)
+        setIsApiFallback(false)
+      } else {
+        console.warn('API documents unavailable; using local fallback.', documentsResult.reason)
+        setApiDocuments(null)
+        setIsApiFallback(true)
+      }
+
+      if (statsResult.status === 'fulfilled') {
+        setApiStats(statsResult.value || null)
+      } else {
+        console.warn('API document stats unavailable; using calculated stats.', statsResult.reason)
+        setApiStats(null)
+      }
+    }
+
+    loadDocumentsFromApi()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const applyDocumentsUpdate = (updater) => {
+    const nextDocuments = (typeof updater === 'function' ? updater(documents) : updater).map(normalizeDocument)
+
+    setLocalDocuments(nextDocuments)
+
+    if (apiDocuments !== null) {
+      setApiDocuments(nextDocuments)
+    }
+
+    return nextDocuments
+  }
 
   const filteredDocuments = useMemo(
     () => documents.filter((document) => documentMatchesFilters(document, filters)),
@@ -126,21 +253,43 @@ const Documentos = () => {
   }, [documents])
 
   const documentsByStatus = useMemo(
-    () =>
-      DOCUMENT_STATUSES.map((status) => ({
-        label: status,
-        count: documents.filter((document) => document.estado === status).length,
-      })).filter((item) => item.count > 0),
-    [documents],
+    () => {
+      const apiStatusStats = pickStatsEntries(apiStats, [
+        'byStatus',
+        'documentsByStatus',
+        'status',
+        'stats.byStatus',
+        'stats.documentsByStatus',
+      ])
+
+      return apiStatusStats.length > 0
+        ? apiStatusStats
+        : DOCUMENT_STATUSES.map((status) => ({
+            label: status,
+            count: documents.filter((document) => document.estado === status).length,
+          })).filter((item) => item.count > 0)
+    },
+    [apiStats, documents],
   )
 
   const documentsByType = useMemo(
-    () =>
-      DOCUMENT_TYPES.map((type) => ({
-        label: type,
-        count: documents.filter((document) => document.tipoDocumento === type).length,
-      })).filter((item) => item.count > 0),
-    [documents],
+    () => {
+      const apiTypeStats = pickStatsEntries(apiStats, [
+        'byType',
+        'documentsByType',
+        'type',
+        'stats.byType',
+        'stats.documentsByType',
+      ])
+
+      return apiTypeStats.length > 0
+        ? apiTypeStats
+        : DOCUMENT_TYPES.map((type) => ({
+            label: type,
+            count: documents.filter((document) => document.tipoDocumento === type).length,
+          })).filter((item) => item.count > 0)
+    },
+    [apiStats, documents],
   )
 
   const statusChartData = useMemo(
@@ -191,7 +340,7 @@ const Documentos = () => {
     }
 
     const duplicatedDocument = duplicateDocument(document)
-    setDocuments((currentDocuments) => upsertDocument(currentDocuments, duplicatedDocument))
+    applyDocumentsUpdate((currentDocuments) => upsertDocument(currentDocuments, duplicatedDocument))
     setQuotes((currentQuotes) => upsertQuoteFromDocument(currentQuotes, duplicatedDocument))
     setMessage(
       `Documento ${document.numeroDocumento} duplicado como ${duplicatedDocument.numeroDocumento}.`,
@@ -204,7 +353,7 @@ const Documentos = () => {
       return
     }
 
-    setDocuments((currentDocuments) => deleteDocument(currentDocuments, document.id))
+    applyDocumentsUpdate((currentDocuments) => deleteDocument(currentDocuments, document.id))
     setQuotes((currentQuotes) => deleteQuoteByDocument(currentQuotes, document))
     setMessage('Documento eliminado localmente.')
   }
@@ -370,7 +519,7 @@ const Documentos = () => {
 
     const previousDocument = documents.find((document) => document.id === updatedDocument.id)
 
-    setDocuments((currentDocuments) => upsertDocument(currentDocuments, updatedDocument))
+    applyDocumentsUpdate((currentDocuments) => upsertDocument(currentDocuments, updatedDocument))
     setQuotes((currentQuotes) => {
       const withoutPreviousQuote =
         previousDocument &&
@@ -401,6 +550,14 @@ const Documentos = () => {
 
   return (
     <CRow className="g-4">
+      {isApiFallback && (
+        <CCol xs={12}>
+          <CAlert color="warning" className="mb-0">
+            Trabajando en modo local porque la API no respondió.
+          </CAlert>
+        </CCol>
+      )}
+
       <CCol md={3} sm={6}>
         <CCard className="h-100">
           <CCardBody>

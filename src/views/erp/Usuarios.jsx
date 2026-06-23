@@ -28,7 +28,8 @@ import {
   CTableRow,
 } from '@coreui/react'
 import { erpRoles, mockUsers } from '../../data/mockUsers'
-import { createLocalId, STORAGE_KEYS, useLocalStorageState } from '../../utils/storage'
+import { createLocalId, readStorage, STORAGE_KEYS, writeStorage } from '../../utils/storage'
+import { get as apiGet, post as apiPost, put as apiPut, remove as apiDelete } from '../../services/apiClient'
 import { exportListToExcel } from '../../utils/exportListToExcel'
 import { useAuth } from '../../context/AuthContext'
 
@@ -87,6 +88,23 @@ const normalizeUser = (user) => ({
   area: user.area || '',
   observations: user.observations || user.observaciones || '',
 })
+
+const getStoredUsers = () => {
+  const storedUsers = readStorage(USERS_STORAGE_KEY, null)
+
+  return Array.isArray(storedUsers)
+    ? storedUsers.map(normalizeUser)
+    : mockUsers.map(normalizeUser)
+}
+
+const getApiItems = (payload) => {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.items)) return payload.items
+  if (Array.isArray(payload?.users)) return payload.users
+  if (Array.isArray(payload?.data)) return payload.data
+
+  return []
+}
 
 const mergeBaseUsers = (users) => {
   const usersByEmail = new Map()
@@ -168,7 +186,8 @@ const getCompletionColor = (percent) => {
 const Usuarios = () => {
   const { hasPermission } = useAuth()
   const canManageUsers = hasPermission('users.manage')
-  const [users, setUsers] = useLocalStorageState(USERS_STORAGE_KEY, mockUsers.map(normalizeUser))
+  const [users, setUsers] = useState(getStoredUsers)
+  const [isApiFallback, setIsApiFallback] = useState(false)
   const [visible, setVisible] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [formData, setFormData] = useState(emptyUser)
@@ -179,8 +198,38 @@ const Usuarios = () => {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    setUsers((currentUsers) => mergeBaseUsers(currentUsers))
-  }, [setUsers])
+    let isMounted = true
+
+    const loadUsersFromApi = async () => {
+      try {
+        const payload = await apiGet('/users')
+        const apiUsers = getApiItems(payload).map(normalizeUser)
+
+        if (!isMounted) return
+
+        setUsers(apiUsers)
+        writeStorage(USERS_STORAGE_KEY, apiUsers)
+        setIsApiFallback(false)
+      } catch (loadError) {
+        console.warn('API users unavailable; using local fallback.', loadError)
+
+        if (isMounted) {
+          setUsers((currentUsers) => mergeBaseUsers(currentUsers))
+          setIsApiFallback(true)
+        }
+      }
+    }
+
+    loadUsersFromApi()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    writeStorage(USERS_STORAGE_KEY, users.map(normalizeUser))
+  }, [users])
 
   const normalizedUsers = useMemo(() => users.map(normalizeUser), [users])
 
@@ -306,7 +355,7 @@ const Usuarios = () => {
     return ''
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
 
     if (!canManageUsers) {
@@ -327,43 +376,90 @@ const Usuarios = () => {
       email: formData.email.trim().toLowerCase(),
     })
 
-    setUsers((currentUsers) => {
-      if (editingId) {
-        return currentUsers.map((user) => (user.id === editingId ? payload : user))
-      }
+    try {
+      const savedUser = normalizeUser(
+        editingId ? await apiPut(`/users/${editingId}`, payload) : await apiPost('/users', payload),
+      )
 
-      return [...currentUsers, payload]
-    })
+      setUsers((currentUsers) => {
+        if (editingId) {
+          return currentUsers.map((user) => (user.id === editingId ? savedUser : user))
+        }
 
-    setMessage(editingId ? 'Usuario actualizado localmente.' : 'Usuario creado localmente.')
-    closeModal()
+        return [...currentUsers, savedUser]
+      })
+
+      setIsApiFallback(false)
+      setMessage(editingId ? 'Usuario actualizado en la API.' : 'Usuario creado en la API.')
+      closeModal()
+    } catch (saveError) {
+      console.error('Error guardando usuario en API:', saveError)
+
+      setUsers((currentUsers) => {
+        if (editingId) {
+          return currentUsers.map((user) => (user.id === editingId ? payload : user))
+        }
+
+        return [...currentUsers, payload]
+      })
+
+      setIsApiFallback(true)
+      setMessage(
+        editingId
+          ? 'Usuario actualizado localmente porque la API no respondió.'
+          : 'Usuario creado localmente porque la API no respondió.',
+      )
+      closeModal()
+    }
   }
 
-  const handleDelete = (userId) => {
+  const handleDelete = async (userId) => {
     if (!canManageUsers) {
       setMessage('Tu perfil no permite eliminar usuarios.')
       return
     }
 
-    setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId))
-    setMessage('Usuario eliminado localmente.')
+    try {
+      await apiDelete(`/users/${userId}`)
+      setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId))
+      setIsApiFallback(false)
+      setMessage('Usuario eliminado de la API.')
+    } catch (deleteError) {
+      console.error('Error eliminando usuario en API:', deleteError)
+      setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId))
+      setIsApiFallback(true)
+      setMessage('Usuario eliminado localmente porque la API no respondió.')
+    }
   }
 
-  const handleToggleStatus = (user) => {
+  const handleToggleStatus = async (user) => {
     if (!canManageUsers) {
       setMessage('Tu perfil no permite cambiar estados de usuario.')
       return
     }
 
     const nextStatus = user.status === 'Activo' ? 'Inactivo' : 'Activo'
+    const updatedUser = normalizeUser({ ...user, status: nextStatus })
 
-    setUsers((currentUsers) =>
-      currentUsers.map((currentUser) =>
-        currentUser.id === user.id ? { ...currentUser, status: nextStatus } : currentUser,
-      ),
-    )
-
-    setMessage(`Usuario ${nextStatus === 'Activo' ? 'activado' : 'inactivado'} localmente.`)
+    try {
+      const savedUser = normalizeUser(await apiPut(`/users/${user.id}`, updatedUser))
+      setUsers((currentUsers) =>
+        currentUsers.map((currentUser) => (currentUser.id === user.id ? savedUser : currentUser)),
+      )
+      setIsApiFallback(false)
+      setMessage(`Usuario ${nextStatus === 'Activo' ? 'activado' : 'inactivado'} en la API.`)
+    } catch (statusError) {
+      console.error('Error cambiando estado de usuario en API:', statusError)
+      setUsers((currentUsers) =>
+        currentUsers.map((currentUser) =>
+          currentUser.id === user.id ? updatedUser : currentUser,
+        ),
+      )
+      setIsApiFallback(true)
+      setMessage(
+        `Usuario ${nextStatus === 'Activo' ? 'activado' : 'inactivado'} localmente porque la API no respondió.`,
+      )
+    }
   }
 
   const handleExportUsersList = async () => {
@@ -494,6 +590,12 @@ const Usuarios = () => {
             {message && (
               <CAlert color="success" dismissible onClose={() => setMessage('')}>
                 {message}
+              </CAlert>
+            )}
+
+            {isApiFallback && (
+              <CAlert color="warning">
+                Trabajando en modo local porque la API no respondió.
               </CAlert>
             )}
 
