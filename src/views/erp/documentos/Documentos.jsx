@@ -277,8 +277,12 @@ const Documentos = () => {
 
     try {
       const { exportQuoteToPdf } = await import('../../../utils/exportQuoteToPdf')
-      await exportQuoteToPdf(getDocumentPayload(document))
-      setMessage(`PDF generado para el documento ${document.numeroDocumento}.`)
+      const result = await exportQuoteToPdf(getDocumentPayload(document))
+      setMessage(
+        result?.fallback === 'print'
+          ? result.message
+          : `PDF generado para el documento ${document.numeroDocumento}.`,
+      )
     } catch (error) {
       console.error('Error exportando PDF desde documentos:', error)
       setMessage(error.message || 'No se pudo generar el PDF del documento.')

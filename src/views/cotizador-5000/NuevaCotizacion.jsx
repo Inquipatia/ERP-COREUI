@@ -593,7 +593,12 @@ const NuevaCotizacion = () => {
 
     try {
       const { exportQuoteToPdf } = await import('../../utils/exportQuoteToPdf')
-      await exportQuoteToPdf(payload)
+      const result = await exportQuoteToPdf(payload)
+
+      if (result?.fallback === 'print') {
+        setValidationError(result.message)
+        alert(result.message)
+      }
     } catch (error) {
       console.error('Error exporting quote to PDF:', error)
       const message = error.message || 'No se pudo exportar la cotizacion a PDF.'
