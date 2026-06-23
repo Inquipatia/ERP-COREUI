@@ -42,7 +42,12 @@ import {
   TENDER_STORAGE_KEY,
 } from '../../../utils/tenderStorage'
 
-const TENDER_ANALYZER_API_URL = 'http://localhost:4100/analyze-tender-documents'
+const API_BASE_URL =
+  import.meta.env.VITE_RUBIK_API_URL || 'https://api.rubikcreaciones.com/api'
+
+const TENDER_ANALYZER_API_URL =
+  import.meta.env.VITE_RUBIK_TENDER_ANALYZER_URL ||
+  `${API_BASE_URL}/tender-analyzer/analyze-documents`
 const SUPPORTED_TENDER_DOCUMENT_EXTENSIONS = '.pdf,.xlsx,.xls,.docx,.txt,.jpg,.jpeg,.png'
 
 const emptyFilters = {
@@ -340,12 +345,12 @@ const Licitaciones = () => {
   const { currentUser } = useAuth()
   const currentActor = currentUser
     ? {
-        id: currentUser.id,
-        name: currentUser.name,
-        email: currentUser.email,
-        role: currentUser.role,
-        area: currentUser.area,
-      }
+      id: currentUser.id,
+      name: currentUser.name,
+      email: currentUser.email,
+      role: currentUser.role,
+      area: currentUser.area,
+    }
     : null
   const [tenders, setTenders] = useLocalStorageState(
     TENDER_STORAGE_KEY,
@@ -428,8 +433,7 @@ const Licitaciones = () => {
       ],
     }))
     setMessage(
-      `${files.length} archivo${files.length === 1 ? '' : 's'} seleccionado${
-        files.length === 1 ? '' : 's'
+      `${files.length} archivo${files.length === 1 ? '' : 's'} seleccionado${files.length === 1 ? '' : 's'
       }. Presiona Analizar documentos para extraer y completar la ficha.`,
     )
   }
@@ -522,7 +526,7 @@ const Licitaciones = () => {
     } catch (analysisError) {
       console.error('Error analizando documentos de licitación:', analysisError)
       setError(
-        `${analysisError.message} Verifica que el servidor esté corriendo con npm run tender-server, o pega el texto manualmente como respaldo.`,
+        `${analysisError.message} No se pudo conectar con el analizador de licitaciones. Verifica que la API esté publicada correctamente o pega el texto manualmente como respaldo.`,
       )
     } finally {
       setIsAnalyzingDocuments(false)
@@ -1193,8 +1197,8 @@ const Licitaciones = () => {
                               {(diagnostic.fieldsFound || []).length === 0
                                 ? '-'
                                 : diagnostic.fieldsFound
-                                    .map((field) => fieldLabels[field] || field)
-                                    .join(', ')}
+                                  .map((field) => fieldLabels[field] || field)
+                                  .join(', ')}
                             </CTableDataCell>
                             <CTableDataCell>
                               {(diagnostic.extractionWarnings || []).length === 0
@@ -1510,8 +1514,8 @@ const Licitaciones = () => {
                                 {(diagnostic.fieldsFound || []).length === 0
                                   ? '-'
                                   : diagnostic.fieldsFound
-                                      .map((field) => fieldLabels[field] || field)
-                                      .join(', ')}
+                                    .map((field) => fieldLabels[field] || field)
+                                    .join(', ')}
                               </CTableDataCell>
                               <CTableDataCell>
                                 {(diagnostic.extractionWarnings || []).length === 0
