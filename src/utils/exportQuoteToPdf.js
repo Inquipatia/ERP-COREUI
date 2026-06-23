@@ -1,11 +1,11 @@
 const PDF_API_URL =
   import.meta.env.VITE_RUBIK_PDF_API_URL ||
-  (import.meta.env.PROD
-    ? 'https://api.rubikcreaciones.com/api/export-pdf'
-    : 'http://localhost:4000/export-pdf')
+  (!import.meta.env.PROD ? 'http://localhost:4000/export-pdf' : '')
 
 const PRINT_FALLBACK_MESSAGE =
-  'No se pudo conectar al servicio PDF. Se abrio una version imprimible para guardar como PDF.'
+  'Servicio PDF no disponible. Se abrio una version imprimible para guardar como PDF.'
+
+const PDF_REQUEST_TIMEOUT_MS = 12000
 
 const formatCurrency = (value) =>
   new Intl.NumberFormat('es-CL', {
@@ -292,6 +292,13 @@ const downloadPdfBlob = async (response, quoteData) => {
 }
 
 export const exportQuoteToPdf = async (quoteData) => {
+  if (!PDF_API_URL) {
+    return openPrintableFallback(quoteData)
+  }
+
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), PDF_REQUEST_TIMEOUT_MS)
+
   try {
     const response = await fetch(PDF_API_URL, {
       body: JSON.stringify(quoteData),
@@ -299,6 +306,7 @@ export const exportQuoteToPdf = async (quoteData) => {
         'Content-Type': 'application/json',
       },
       method: 'POST',
+      signal: controller.signal,
     })
 
     const contentType = response.headers.get('content-type') || ''
@@ -323,6 +331,7 @@ export const exportQuoteToPdf = async (quoteData) => {
   } catch (error) {
     console.error('PDF API unavailable, using printable fallback:', error)
     return openPrintableFallback(quoteData)
+  } finally {
+    window.clearTimeout(timeoutId)
   }
 }
-
