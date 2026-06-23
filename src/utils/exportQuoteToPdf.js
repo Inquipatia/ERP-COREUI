@@ -1,6 +1,10 @@
+const API_BASE_URL =
+  import.meta.env.VITE_RUBIK_API_URL ||
+  (import.meta.env.PROD ? '/api' : 'http://localhost:4300/api')
+
 const PDF_API_URL =
   import.meta.env.VITE_RUBIK_PDF_API_URL ||
-  (!import.meta.env.PROD ? 'http://localhost:4000/export-pdf' : '')
+  `${API_BASE_URL.replace(/\/$/, '')}/export/pdf`
 
 const PRINT_FALLBACK_MESSAGE =
   'Servicio PDF no disponible. Se abrio una version imprimible para guardar como PDF.'
@@ -28,8 +32,13 @@ const getFileName = (quoteData, extension = 'pdf') => {
   const quoteNumber =
     quoteData?.quote?.quoteNumber ||
     quoteData?.quoteData?.quoteNumber ||
+    quoteData?.numero ||
     quoteData?.quoteNumber ||
     '8103'
+
+  if (extension === 'pdf') {
+    return `cotizacion-${quoteNumber}.pdf`
+  }
 
   return `Cotizacion-Rubik-${quoteNumber}.${extension}`
 }
@@ -102,6 +111,46 @@ const getQuoteItems = (quoteData) =>
     : Array.isArray(quoteData?.items)
       ? quoteData.items
       : []
+
+const buildBackendPdfPayload = (quoteData) => {
+  const company = quoteData?.company || {}
+  const seller = quoteData?.seller || {}
+  const client = quoteData?.client || {}
+  const quote = quoteData?.quote || quoteData?.quoteData || {}
+  const items = getQuoteItems(quoteData)
+  const amounts = getQuoteAmounts(quoteData)
+  const quoteNumber = quote.quoteNumber || quote.numero || quoteData?.numero || quoteData?.quoteNumber || '8103'
+
+  return {
+    ...quoteData,
+    numero: quoteNumber,
+    fecha: quote.date || quote.fecha || quoteData?.fecha || '',
+    cliente: client.client || client.cliente || client.contact || quoteData?.cliente || '',
+    rut: client.rut || client.rutCliente || quoteData?.rut || '',
+    atencion: client.attention || client.atencion || quoteData?.atencion || '',
+    telefono: client.phone || client.telefono || quoteData?.telefono || '',
+    comuna: client.comuna || client.commune || quoteData?.comuna || '',
+    condicion: quote.condition || quote.condicion || quoteData?.condicion || '',
+    vendedor: seller.name || quote.vendedor || quoteData?.vendedor || '',
+    observaciones: quote.observaciones || quoteData?.observaciones || '',
+    items: items.map((item) => ({
+      cantidad: getItemQuantity(item),
+      descripcion: getItemDescription(item),
+      valorUnitario: getItemUnitValue(item),
+      total: getItemTotal(item),
+      observaciones: getItemObservations(item),
+    })),
+    neto: amounts.net,
+    iva: amounts.iva,
+    total: amounts.total,
+    company,
+    seller,
+    client,
+    quote,
+    quoteItems: items,
+    amounts,
+  }
+}
 
 const getQuoteAmounts = (quoteData) => {
   const items = getQuoteItems(quoteData)
@@ -353,8 +402,10 @@ const downloadQuoteBlob = async (response, quoteData) => {
 }
 
 export const exportQuoteToPdf = async (quoteData) => {
+  const pdfPayload = buildBackendPdfPayload(quoteData)
+
   if (!PDF_API_URL) {
-    return openPrintableFallback(quoteData)
+    return openPrintableFallback(pdfPayload)
   }
 
   const controller = new AbortController()
@@ -362,7 +413,7 @@ export const exportQuoteToPdf = async (quoteData) => {
 
   try {
     const response = await fetch(PDF_API_URL, {
-      body: JSON.stringify(quoteData),
+      body: JSON.stringify(pdfPayload),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -373,14 +424,14 @@ export const exportQuoteToPdf = async (quoteData) => {
     const contentType = response.headers.get('content-type') || ''
 
     if (response.ok) {
-      return downloadQuoteBlob(response, quoteData)
+      return downloadQuoteBlob(response, pdfPayload)
     }
 
     if (contentType.includes('application/json')) {
       const data = await response.clone().json().catch(() => null)
 
       if (data?.fallback === 'print') {
-        return openPrintableFallback(quoteData)
+        return openPrintableFallback(pdfPayload)
       }
 
       throw new Error(data?.message || data?.error || 'No se pudo exportar la cotizacion a PDF.')
@@ -389,7 +440,7 @@ export const exportQuoteToPdf = async (quoteData) => {
     throw new Error('No se pudo exportar la cotizacion a PDF.')
   } catch (error) {
     console.error('PDF API unavailable, using printable fallback:', error)
-    return openPrintableFallback(quoteData)
+    return openPrintableFallback(pdfPayload)
   } finally {
     window.clearTimeout(timeoutId)
   }

@@ -585,7 +585,7 @@ const NuevaCotizacion = () => {
     }
   }
 
-  const handleExportPdf = async () => {
+  const exportarPDF = async () => {
     const { payload, error } = buildQuotePayload()
 
     if (error) {
@@ -607,7 +607,7 @@ const NuevaCotizacion = () => {
       if (result?.ok === true && result?.fallback !== 'print') {
         setValidationError('')
         setExportWarning('')
-        setSaveMessage('Cotización generada desde plantilla correctamente.')
+        setSaveMessage('PDF de cotización descargado correctamente.')
         return
       }
 
@@ -1019,9 +1019,9 @@ const NuevaCotizacion = () => {
                   type="button"
                   variant="outline"
                   disabled={isExportingPdf}
-                  onClick={handleExportPdf}
+                  onClick={exportarPDF}
                 >
-                  {isExportingPdf ? 'Exportando...' : 'Exportar PDF'}
+                  {isExportingPdf ? 'Exportando...' : 'Descargar PDF'}
                 </CButton>
               </CCardBody>
             </CCard>
