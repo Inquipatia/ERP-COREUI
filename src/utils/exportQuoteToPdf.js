@@ -8,9 +8,6 @@ const PDF_API_URL =
   import.meta.env.VITE_RUBIK_PDF_API_URL ||
   `${API_BASE_URL.replace(/\/$/, '')}/export/pdf`
 
-const PRINT_FALLBACK_MESSAGE =
-  'Servicio PDF no disponible. Se abrio una version imprimible para guardar como PDF.'
-
 const PDF_REQUEST_TIMEOUT_MS = 12000
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const PDF_CONTENT_TYPE = 'application/pdf'
@@ -56,7 +53,7 @@ const getFileExtensionFromContentType = (contentType = '') => {
     return 'pdf'
   }
 
-  return 'xlsx'
+  return 'pdf'
 }
 
 const getFileNameFromContentDisposition = (contentDisposition = '') => {
@@ -360,28 +357,6 @@ const buildPrintableQuoteHtml = (quoteData) => {
 </html>`
 }
 
-const openPrintableFallback = (quoteData) => {
-  if (typeof window === 'undefined') {
-    throw new Error(PRINT_FALLBACK_MESSAGE)
-  }
-
-  const printWindow = window.open('', '_blank')
-
-  if (!printWindow) {
-    throw new Error(`${PRINT_FALLBACK_MESSAGE} Permite ventanas emergentes para continuar.`)
-  }
-
-  printWindow.document.open()
-  printWindow.document.write(buildPrintableQuoteHtml(quoteData))
-  printWindow.document.close()
-
-  return {
-    fallback: 'print',
-    message: PRINT_FALLBACK_MESSAGE,
-    ok: true,
-  }
-}
-
 const downloadQuoteBlob = async (response, quoteData) => {
   const blob = await response.blob()
   const url = window.URL.createObjectURL(blob)
@@ -407,7 +382,9 @@ export const exportQuoteToPdf = async (quoteData) => {
   const pdfPayload = buildBackendPdfPayload(quoteData)
 
   if (!PDF_API_URL) {
-    return openPrintableFallback(pdfPayload)
+    const error = new Error('No hay URL configurada para el generador PDF.')
+    alert(`No se pudo conectar con el generador PDF.\n\nURL usada: ${PDF_API_URL}\n\nError: ${error.message}`)
+    throw error
   }
 
   const controller = new AbortController()
@@ -434,10 +411,6 @@ export const exportQuoteToPdf = async (quoteData) => {
 
     if (contentType.includes('application/json')) {
       const data = await response.clone().json().catch(() => null)
-
-      if (data?.fallback === 'print') {
-        return openPrintableFallback(pdfPayload)
-      }
 
       throw new Error(data?.message || data?.error || 'No se pudo exportar la cotizacion a PDF.')
     }
