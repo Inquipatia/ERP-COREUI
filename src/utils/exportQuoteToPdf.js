@@ -1,10 +1,10 @@
 const API_BASE_URL =
   import.meta.env.VITE_RUBIK_API_URL ||
-  (import.meta.env.PROD ? '/api' : 'http://localhost:4300/api')
+  'http://localhost:4300/api'
 
 const PDF_API_URL =
   import.meta.env.VITE_RUBIK_PDF_API_URL ||
-  `${API_BASE_URL.replace(/\/$/, '')}/export/pdf`
+  'http://localhost:4300/api/export/pdf'
 
 const PRINT_FALLBACK_MESSAGE =
   'Servicio PDF no disponible. Se abrio una version imprimible para guardar como PDF.'
@@ -412,6 +412,9 @@ export const exportQuoteToPdf = async (quoteData) => {
   const timeoutId = window.setTimeout(() => controller.abort(), PDF_REQUEST_TIMEOUT_MS)
 
   try {
+    console.log('PDF_API_URL USADA:', PDF_API_URL)
+    console.log('PDF_PAYLOAD:', pdfPayload)
+
     const response = await fetch(PDF_API_URL, {
       body: JSON.stringify(pdfPayload),
       headers: {
@@ -439,8 +442,13 @@ export const exportQuoteToPdf = async (quoteData) => {
 
     throw new Error('No se pudo exportar la cotizacion a PDF.')
   } catch (error) {
-    console.error('PDF API unavailable, using printable fallback:', error)
-    return openPrintableFallback(pdfPayload)
+    console.error('PDF API unavailable:', error)
+
+    alert(
+      `No se pudo conectar con el generador PDF.\n\nURL usada: ${PDF_API_URL}\n\nError: ${error.message}`
+    )
+
+    throw error
   } finally {
     window.clearTimeout(timeoutId)
   }
