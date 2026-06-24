@@ -1,10 +1,12 @@
 const API_BASE_URL =
   import.meta.env.VITE_RUBIK_API_URL ||
-  'http://localhost:4300/api'
+  (import.meta.env.PROD
+    ? 'https://api.rubikcreaciones.com/api'
+    : 'http://localhost:4300/api')
 
 const PDF_API_URL =
   import.meta.env.VITE_RUBIK_PDF_API_URL ||
-  'http://localhost:4300/api/export/pdf'
+  `${API_BASE_URL.replace(/\/$/, '')}/export/pdf`
 
 const PRINT_FALLBACK_MESSAGE =
   'Servicio PDF no disponible. Se abrio una version imprimible para guardar como PDF.'
