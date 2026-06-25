@@ -1,6 +1,7 @@
 const { generateCotizacionPdfWithPdfkit } = require('./generateCotizacionPdfWithPdfkit')
 
-// Compatibilidad temporal: el flujo productivo ya no usa navegador ni Chrome.
+// Compatibilidad temporal:
+// El flujo productivo ya no usa Puppeteer, Chrome ni LibreOffice.
 module.exports = {
   generateCotizacionPdfWithPuppeteer: generateCotizacionPdfWithPdfkit,
 }
