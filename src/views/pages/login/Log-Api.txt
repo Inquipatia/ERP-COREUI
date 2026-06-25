@@ -1,0 +1,153 @@
+1
+
+npm warn config production Use `--omit=dev` instead.
+
+2
+
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+
+3
+
+npm warn deprecated rimraf@2.7.1: Rimraf versions prior to v4 are no longer supported
+
+4
+
+npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
+
+5
+
+npm warn deprecated glob@7.2.3: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+
+6
+
+npm warn deprecated fstream@1.0.12: This package is no longer supported.
+
+7
+
+npm warn deprecated uuid@8.3.2: uuid@10 and below is no longer supported. For ESM codebases, update to uuid@latest. For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+
+8
+
+
+9
+
+added 262 packages, and audited 263 packages in 7s
+
+10
+
+
+11
+
+48 packages are looking for funding
+
+12
+
+run `npm fund` for details
+
+13
+
+
+14
+
+2 moderate severity vulnerabilities
+
+15
+
+
+16
+
+To address all issues (including breaking changes), run:
+
+17
+
+npm audit fix --force
+
+18
+
+
+19
+
+Run `npm audit` for details.
+
+20
+
+npm warn config production Use `--omit=dev` instead.
+
+21
+
+
+22
+
+> erp-coreui-api@1.0.0 build
+
+23
+
+> prisma generate
+
+24
+
+
+25
+
+Prisma schema loaded from prisma/schema.prisma
+
+26
+
+┌─────────────────────────────────────────────────────────┐
+
+27
+
+│ Update available 6.19.3 -> 7.8.0 │
+
+28
+
+│ │
+
+29
+
+│ This is a major update - please follow the guide at │
+
+30
+
+│ https://pris.ly/d/major-version-upgrade │
+
+31
+
+│ │
+
+32
+
+│ Run the following to update │
+
+33
+
+│ npm i --save-dev prisma@latest │
+
+34
+
+│ npm i @prisma/client@latest │
+
+35
+
+└─────────────────────────────────────────────────────────┘
+
+36
+
+
+37
+
+✔ Generated Prisma Client (v6.19.3) to ./node_modules/@prisma/client in 173ms
+
+38
+
+
+39
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+40
+
+
+41
+
+Tip: Need your database queries to be 1000x faster? Accelerate offers you that and more: https://pris.ly/tip-2-accelerate
