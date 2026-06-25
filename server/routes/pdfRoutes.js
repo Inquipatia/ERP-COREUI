@@ -1,5 +1,5 @@
 const express = require('express')
-const { generateCotizacionPdfWithPuppeteer } = require('../utils/generateCotizacionPdfWithPuppeteer')
+const { generateCotizacionPdfWithPdfkit } = require('../utils/generateCotizacionPdfWithPdfkit')
 const { renderCotizacionHTML } = require('../utils/renderCotizacionHTML')
 
 const router = express.Router()
@@ -14,6 +14,15 @@ const getQuoteNumber = (quote = {}) =>
   quote.quoteNumber || quote.numeroCotizacion || quote.numero || quote.number || 'sin-numero'
 
 const hasBody = (body) => body && typeof body === 'object' && Object.keys(body).length > 0
+
+router.get('/export/pdf-health', (_request, response) => {
+  response.json({
+    ok: true,
+    engine: 'pdfkit',
+    chromeRequired: false,
+    libreOfficeRequired: false,
+  })
+})
 
 router.post('/export/pdf-preview-html', (request, response) => {
   if (!hasBody(request.body)) {
@@ -33,7 +42,7 @@ router.post('/export/pdf', async (request, response) => {
 
   try {
     const quoteNumber = sanitizeFilePart(getQuoteNumber(request.body))
-    const pdfBuffer = await generateCotizacionPdfWithPuppeteer(request.body)
+    const pdfBuffer = await generateCotizacionPdfWithPdfkit(request.body)
 
     response.setHeader('Content-Type', 'application/pdf')
     response.setHeader('Content-Disposition', `attachment; filename="cotizacion-${quoteNumber}.pdf"`)
@@ -41,6 +50,7 @@ router.post('/export/pdf', async (request, response) => {
     response.send(pdfBuffer)
   } catch (error) {
     console.error('Error generating quote PDF:', {
+      name: error.name,
       message: error.message,
       stack: error.stack,
     })
