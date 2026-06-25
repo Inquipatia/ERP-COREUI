@@ -29,7 +29,7 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
           return {
             ok: false,
-            error: error.message || 'No se pudo iniciar sesion.',
+            error: error.message || 'No se pudo iniciar sesión.',
           }
         }
       },

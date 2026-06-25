@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   CAlert,
-  CBadge,
   CButton,
   CCard,
   CCardBody,
@@ -12,7 +11,6 @@ import {
   CForm,
   CFormInput,
   CFormLabel,
-  CFormSelect,
   CInputGroup,
   CInputGroupText,
   CRow,
@@ -20,15 +18,14 @@ import {
 import CIcon from '@coreui/icons-react'
 import { cilLockLocked, cilUser } from '@coreui/icons'
 import { useAuth } from '../../context/AuthContext'
-import { getAuthUsers, getDefaultRouteForUser } from '../../utils/authStorage'
+import { getDefaultRouteForUser } from '../../utils/authStorage'
 
 const Login = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { currentUser, login } = useAuth()
-  const users = useMemo(() => getAuthUsers().filter((user) => user.status !== 'Inactivo'), [])
-  const [email, setEmail] = useState('rsepulveda@rubikcreaciones.cl')
-  const [password, setPassword] = useState('123456')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -55,7 +52,7 @@ const Login = () => {
 
       navigate(requestedPath || getDefaultRouteForUser(result.user), { replace: true })
     } catch (loginError) {
-      setError(loginError.message || 'No se pudo iniciar sesion.')
+      setError(loginError.message || 'No se pudo iniciar sesión.')
     } finally {
       setIsSubmitting(false)
     }
@@ -76,20 +73,6 @@ const Login = () => {
                     </p>
 
                     {error && <CAlert color="danger">{error}</CAlert>}
-
-                    <CFormLabel htmlFor="loginUserSelect">Usuario de prueba</CFormLabel>
-                    <CFormSelect
-                      id="loginUserSelect"
-                      className="mb-3"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                    >
-                      {users.map((user) => (
-                        <option key={user.email} value={user.email}>
-                          {user.name} · {user.role}
-                        </option>
-                      ))}
-                    </CFormSelect>
 
                     <CFormLabel htmlFor="loginEmail">Email</CFormLabel>
                     <CInputGroup className="mb-3">
@@ -120,7 +103,7 @@ const Login = () => {
                     </CInputGroup>
 
                     <CButton color="primary" type="submit" className="w-100" disabled={isSubmitting}>
-                      {isSubmitting ? 'Iniciando sesion...' : 'Iniciar sesión'}
+                      {isSubmitting ? 'Iniciando sesión...' : 'Iniciar sesión'}
                     </CButton>
                   </CForm>
                 </CCardBody>
@@ -129,17 +112,9 @@ const Login = () => {
               <CCard className="text-white bg-primary py-5 d-none d-md-flex" style={{ width: '44%' }}>
                 <CCardBody className="text-center d-flex flex-column justify-content-center">
                   <h2>Rubik Creaciones</h2>
-                  <p className="mb-3">
-                    MVP local con usuarios reales, permisos por rol y navegación protegida.
+                  <p className="mb-0">
+                    Acceso protegido para usuarios autorizados del ERP Rubik.
                   </p>
-                  <div className="d-flex justify-content-center gap-2 flex-wrap">
-                    <CBadge color="light" textColor="dark">
-                      Clave desarrollo: 123456
-                    </CBadge>
-                    <CBadge color="light" textColor="dark">
-                      Sesión localStorage
-                    </CBadge>
-                  </div>
                 </CCardBody>
               </CCard>
             </CCardGroup>

@@ -1,237 +1,242 @@
-const API_BASE_URL =
-  import.meta.env.VITE_RUBIK_API_URL ||
-  (import.meta.env.PROD ? '/api' : 'http://localhost:4300/api')
+const LOCAL_API_BASE_URL = 'http://localhost:4300/api'
+const PRODUCTION_API_BASE_URL = 'https://api.rubikcreaciones.com/api'
+const API_SESSION_STORAGE_KEY = 'rubik.erp.apiSession'
+const CURRENT_USER_STORAGE_KEY = 'rubik.erp.currentUser'
 
-const API_SESSION_KEY = 'rubik.erp.apiSession'
-const CURRENT_USER_KEY = 'rubik.erp.currentUser'
-const TEMP_DEV_PASSWORD = '123456'
+const normalizeBaseUrl = (url = '') => String(url || '').replace(/\/+$/, '')
 
-const canUseLocalStorage = () => typeof window !== 'undefined' && Boolean(window.localStorage)
-
-const readJsonStorage = (key, fallbackValue = null) => {
-  if (!canUseLocalStorage()) return fallbackValue
-
+const safeJsonParse = (value, fallbackValue = null) => {
   try {
-    const rawValue = window.localStorage.getItem(key)
-    return rawValue ? JSON.parse(rawValue) : fallbackValue
-  } catch (_error) {
+    return value ? JSON.parse(value) : fallbackValue
+  } catch (error) {
     return fallbackValue
   }
 }
 
-const writeJsonStorage = (key, value) => {
+const canUseLocalStorage = () => typeof window !== 'undefined' && Boolean(window.localStorage)
+
+const readLocalStorage = (key, fallbackValue = null) => {
+  if (!canUseLocalStorage()) return fallbackValue
+  return safeJsonParse(window.localStorage.getItem(key), fallbackValue)
+}
+
+const writeLocalStorage = (key, value) => {
   if (!canUseLocalStorage()) return
+
+  if (value === null || value === undefined) {
+    window.localStorage.removeItem(key)
+    return
+  }
+
   window.localStorage.setItem(key, JSON.stringify(value))
 }
 
-const removeStorage = (key) => {
-  if (!canUseLocalStorage()) return
-  window.localStorage.removeItem(key)
-}
+const getApiSession = () => readLocalStorage(API_SESSION_STORAGE_KEY, null)
 
-const getStoredApiSession = () => readJsonStorage(API_SESSION_KEY, null)
+export const getApiBaseUrl = () =>
+  normalizeBaseUrl(
+    import.meta.env.VITE_RUBIK_API_URL ||
+      (import.meta.env.DEV ? LOCAL_API_BASE_URL : PRODUCTION_API_BASE_URL),
+  )
 
-const buildUrl = (endpoint = '') => {
-  if (String(endpoint).startsWith('http')) return endpoint
+export const getCurrentWebUser = () => readLocalStorage(CURRENT_USER_STORAGE_KEY, null)
 
-  const normalizedBaseUrl = API_BASE_URL.replace(/\/$/, '')
-  const normalizedEndpoint = String(endpoint).startsWith('/') ? endpoint : `/${endpoint}`
-  return `${normalizedBaseUrl}${normalizedEndpoint}`
-}
-
-const parseResponsePayload = async (response) => {
-  if (response.status === 204) return null
-
-  const contentType = response.headers.get('content-type') || ''
-  if (contentType.includes('application/json')) {
-    return response.json().catch(() => null)
-  }
-
-  return response.text().catch(() => null)
-}
-
-const normalizeRequestBody = (body) => {
-  if (body === undefined || body === null) return undefined
-  if (typeof FormData !== 'undefined' && body instanceof FormData) return body
-  if (typeof body === 'string') return body
-  return JSON.stringify(body)
-}
-
-const isFormDataBody = (body) => typeof FormData !== 'undefined' && body instanceof FormData
-
-export const getApiBaseUrl = () => API_BASE_URL
-
-export const getCurrentWebUser = () => readJsonStorage(CURRENT_USER_KEY, null)
-
-export const setApiSession = (session) => {
-  writeJsonStorage(API_SESSION_KEY, session)
+export const setApiSession = (session = {}) => {
+  writeLocalStorage(API_SESSION_STORAGE_KEY, session)
   return session
 }
 
 export const clearApiSession = () => {
-  removeStorage(API_SESSION_KEY)
+  if (!canUseLocalStorage()) return
+  window.localStorage.removeItem(API_SESSION_STORAGE_KEY)
 }
 
-export const post = async (endpoint, data, options = {}) =>
-  apiRequest(endpoint, {
-    ...options,
-    method: 'POST',
-    body: data,
-  })
+export const buildUrl = (endpoint = '') => {
+  if (/^https?:\/\//i.test(endpoint)) return endpoint
 
-export const get = async (endpoint, options = {}) =>
-  apiRequest(endpoint, {
-    ...options,
-    method: 'GET',
-  })
+  const normalizedEndpoint = String(endpoint || '').startsWith('/')
+    ? endpoint
+    : `/${endpoint}`
 
-export const put = async (endpoint, data, options = {}) =>
-  apiRequest(endpoint, {
-    ...options,
-    method: 'PUT',
-    body: data,
-  })
+  return `${getApiBaseUrl()}${normalizedEndpoint}`
+}
 
-export const patch = async (endpoint, data, options = {}) =>
-  apiRequest(endpoint, {
-    ...options,
-    method: 'PATCH',
-    body: data,
-  })
+const getAuthHeaders = ({ auth = true } = {}) => {
+  if (!auth) return {}
 
-export const remove = async (endpoint, options = {}) =>
-  apiRequest(endpoint, {
-    ...options,
-    method: 'DELETE',
-  })
+  const session = getApiSession()
+  const currentUser = session?.user || getCurrentWebUser()
+  const token = session?.token || session?.accessToken
 
-export const loginToApi = async (currentUser = getCurrentWebUser()) => {
-  if (!currentUser?.email) {
-    throw new Error('No hay usuario local para iniciar sesion API.')
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(currentUser?.id ? { 'X-User-Id': currentUser.id } : {}),
+    ...(currentUser?.name ? { 'X-User-Name': currentUser.name } : {}),
+    ...(currentUser?.email ? { 'X-User-Email': currentUser.email } : {}),
+    ...(currentUser?.role ? { 'X-User-Role': currentUser.role } : {}),
+    ...(currentUser?.permissions
+      ? { 'X-User-Permissions': JSON.stringify(currentUser.permissions) }
+      : {}),
+  }
+}
+
+const parseResponse = async (response) => {
+  if (response.status === 204) return null
+
+  const contentType = response.headers.get('content-type') || ''
+
+  if (contentType.includes('application/json')) {
+    return response.json()
   }
 
-  const payload = await post(
-    '/auth/login',
-    {
-      email: currentUser.email,
-      password: currentUser.password || TEMP_DEV_PASSWORD,
-    },
-    { auth: false },
-  )
-
-  setApiSession(payload)
-  return payload
-}
-
-const ensureApiSession = async () => {
-  const storedSession = getStoredApiSession()
-  const currentUser = getCurrentWebUser()
-
-  if (
-    storedSession?.token &&
-    storedSession?.user?.email &&
-    currentUser?.email &&
-    storedSession.user.email.toLowerCase() === currentUser.email.toLowerCase()
-  ) {
-    return storedSession
+  if (contentType.includes('text/')) {
+    return response.text()
   }
 
-  return loginToApi(currentUser)
+  return response.blob()
 }
 
-export async function apiRequest(endpoint, options = {}) {
+export const apiRequest = async (endpoint, options = {}) => {
   const {
     auth = true,
-    retrying = false,
-    headers = {},
     body,
+    headers = {},
+    method = 'GET',
     ...fetchOptions
   } = options
-  const requestBody = normalizeRequestBody(body)
-  const session = auth ? await ensureApiSession() : null
-  const requestHeaders = {
-    ...(isFormDataBody(body) ? {} : { 'Content-Type': 'application/json' }),
-    ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
-    ...headers,
-  }
+
+  const hasBody = body !== undefined && body !== null
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
 
   const response = await fetch(buildUrl(endpoint), {
     ...fetchOptions,
-    headers: requestHeaders,
-    body: requestBody,
+    body: isFormData || !hasBody ? body : JSON.stringify(body),
+    headers: {
+      ...(!isFormData && hasBody ? { 'Content-Type': 'application/json' } : {}),
+      ...getAuthHeaders({ auth }),
+      ...headers,
+    },
+    method,
   })
-  const payload = await parseResponsePayload(response)
 
-  if (response.status === 401 && auth && !retrying) {
-    clearApiSession()
-    return apiRequest(endpoint, { ...options, retrying: true })
-  }
+  const payload = await parseResponse(response).catch(() => null)
 
   if (!response.ok) {
-    throw new Error(payload?.error || payload || `Error API ${response.status}`)
+    const message =
+      payload?.message ||
+      payload?.error ||
+      `Error API ${response.status} en ${endpoint}`
+
+    const error = new Error(message)
+    error.status = response.status
+    error.payload = payload
+    throw error
   }
 
   return payload
 }
 
-const getCollectionEndpoint = (resource) => {
-  if (resource === 'financeMovements') return '/finance/movements'
-  if (resource === 'workOrders') return '/work-orders'
-  return `/${resource}`
+export const get = (endpoint, options = {}) =>
+  apiRequest(endpoint, { ...options, method: 'GET' })
+
+export const post = (endpoint, body, options = {}) =>
+  apiRequest(endpoint, { ...options, body, method: 'POST' })
+
+export const put = (endpoint, body, options = {}) =>
+  apiRequest(endpoint, { ...options, body, method: 'PUT' })
+
+export const patch = (endpoint, body, options = {}) =>
+  apiRequest(endpoint, { ...options, body, method: 'PATCH' })
+
+export const remove = (endpoint, options = {}) =>
+  apiRequest(endpoint, { ...options, method: 'DELETE' })
+
+const normalizeListPayload = (payload) => {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.items)) return payload.items
+  if (Array.isArray(payload?.data)) return payload.data
+  return []
 }
 
 export const apiCollections = {
-  list: async (resource) => {
-    const payload = await get(getCollectionEndpoint(resource))
-    return Array.isArray(payload?.items) ? payload.items : []
+  endpoints: {
+    users: '/users',
+    clients: '/clients',
+    quotes: '/quotes',
+    documents: '/documents',
+    tenders: '/tenders',
+    workOrders: '/work-orders',
+    financeMovements: '/finance/movements',
+    suppliers: '/suppliers',
   },
-
-  create: (resource, item) => post(getCollectionEndpoint(resource), item),
-
-  update: (resource, id, item) => put(`${getCollectionEndpoint(resource)}/${id}`, item),
-
-  remove: (resource, id) => remove(`${getCollectionEndpoint(resource)}/${id}`),
+  getEndpoint(resource) {
+    return this.endpoints[resource] || `/${resource}`
+  },
+  async list(resource, options = {}) {
+    const payload = await get(this.getEndpoint(resource), options)
+    return normalizeListPayload(payload)
+  },
+  create(resource, item, options = {}) {
+    return post(this.getEndpoint(resource), item, options)
+  },
+  update(resource, id, item, options = {}) {
+    return put(`${this.getEndpoint(resource)}/${id}`, item, options)
+  },
+  patch(resource, id, item, options = {}) {
+    return patch(`${this.getEndpoint(resource)}/${id}`, item, options)
+  },
+  remove(resource, id, options = {}) {
+    return apiRequest(`${this.getEndpoint(resource)}/${id}`, { ...options, method: 'DELETE' })
+  },
 }
 
-export const importBrowserLocalStorageToApi = async () => {
-  if (!canUseLocalStorage()) {
-    throw new Error('localStorage no esta disponible en este navegador.')
+export const importBrowserLocalStorageToApi = (payload, options = {}) =>
+  post('/dev/import-local-storage', payload, options)
+
+export const getApiStatus = (options = {}) => get('/dev/status', options)
+
+const axiosRequest = async ({ data, method = 'GET', url, ...options } = {}) => {
+  const responseData = await apiRequest(url, {
+    ...options,
+    body: data,
+    method,
+  })
+
+  return {
+    data: responseData,
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config: { data, method, url, ...options },
   }
-
-  const localStorageDump = {}
-
-  for (let index = 0; index < window.localStorage.length; index += 1) {
-    const key = window.localStorage.key(index)
-    localStorageDump[key] = window.localStorage.getItem(key)
-  }
-
-  return post('/dev/import-local-storage', { localStorage: localStorageDump })
 }
-
-export const getApiStatus = () => get('/dev/status', { auth: false })
-
-const toAxiosResponse = async (requestPromise) => ({ data: await requestPromise })
 
 export const axios = {
-  get: (endpoint, config = {}) =>
-    toAxiosResponse(get(endpoint, { headers: config.headers, auth: config.auth })),
-  post: (endpoint, data, config = {}) =>
-    toAxiosResponse(post(endpoint, data, { headers: config.headers, auth: config.auth })),
-  put: (endpoint, data, config = {}) =>
-    toAxiosResponse(put(endpoint, data, { headers: config.headers, auth: config.auth })),
-  patch: (endpoint, data, config = {}) =>
-    toAxiosResponse(patch(endpoint, data, { headers: config.headers, auth: config.auth })),
-  delete: (endpoint, config = {}) =>
-    toAxiosResponse(remove(endpoint, { headers: config.headers, auth: config.auth })),
+  request: axiosRequest,
+  get: (url, options = {}) => axiosRequest({ ...options, method: 'GET', url }),
+  post: (url, data, options = {}) => axiosRequest({ ...options, data, method: 'POST', url }),
+  put: (url, data, options = {}) => axiosRequest({ ...options, data, method: 'PUT', url }),
+  patch: (url, data, options = {}) => axiosRequest({ ...options, data, method: 'PATCH', url }),
+  delete: (url, options = {}) => axiosRequest({ ...options, method: 'DELETE', url }),
 }
 
 export const apiClient = {
+  axios,
+  apiCollections,
+  apiRequest,
+  buildUrl,
+  clearApiSession,
+  delete: remove,
   get,
+  getApiBaseUrl,
+  getApiStatus,
+  getCurrentWebUser,
+  importBrowserLocalStorageToApi,
+  patch,
   post,
   put,
-  patch,
-  delete: remove,
-  axios,
+  remove,
+  setApiSession,
 }
 
 export const api = apiClient
