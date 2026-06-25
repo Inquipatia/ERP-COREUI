@@ -695,7 +695,10 @@ const jsonDataAdapter = {
   getCounts,
 }
 
-module.exports =
-  process.env.RUBIK_DATA_ADAPTER === 'postgres'
-    ? require('./postgresDataAdapter')
-    : jsonDataAdapter
+const adapterMode = String(process.env.RUBIK_DATA_ADAPTER || '').trim().toLowerCase()
+
+const shouldUsePrismaAdapter = ['prisma', 'mysql', 'postgres'].includes(adapterMode)
+
+console.log('[Rubik DataAdapter] mode:', shouldUsePrismaAdapter ? 'prisma' : 'json')
+
+module.exports = shouldUsePrismaAdapter ? require('./postgresDataAdapter') : jsonDataAdapter

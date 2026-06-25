@@ -1,0 +1,329 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String?
+  role         String
+  status       String   @default("Activo")
+  position     String?
+  area         String?
+  permissions  Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  quotesRequested    Quote[]     @relation("QuoteRequester")
+  workOrdersRequested WorkOrder[] @relation("WorkOrderRequester")
+  workOrdersAssigned  WorkOrder[] @relation("WorkOrderAssignee")
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+}
+
+model Client {
+  id           String   @id @default(cuid())
+  contactName  String
+  company      String?
+  rut          String?
+  phone        String?
+  email        String?
+  commune      String?
+  address      String?
+  status       String   @default("Activo")
+  observations String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  quotes    Quote[]
+  documents Document[]
+
+  @@index([rut])
+  @@index([company])
+  @@index([status])
+}
+
+model Quote {
+  id             String   @id @default(cuid())
+  quoteNumber    String   @unique
+  clientId       String?
+  clientName     String?
+  company        String?
+  sellerName     String?
+  sellerEmail    String?
+  subject        String?
+  condition      String?
+  status         String   @default("Borrador")
+  netAmount      Decimal  @default(0) @db.Decimal(14, 2)
+  taxAmount      Decimal  @default(0) @db.Decimal(14, 2)
+  totalAmount    Decimal  @default(0) @db.Decimal(14, 2)
+  issueDate      DateTime @default(now())
+  payload        Json?
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client             Client?             @relation(fields: [clientId], references: [id])
+  createdBy          User?               @relation("QuoteRequester", fields: [createdById], references: [id])
+  items              QuoteItem[]
+  documents          Document[]
+  financialMovements FinancialMovement[]
+
+  @@index([quoteNumber])
+  @@index([clientId])
+  @@index([status])
+  @@index([issueDate])
+}
+
+model QuoteItem {
+  id          String  @id @default(cuid())
+  quoteId     String
+  quantity    Decimal @default(0) @db.Decimal(14, 2)
+  description String
+  unitValue   Decimal @default(0) @db.Decimal(14, 2)
+  totalValue  Decimal @default(0) @db.Decimal(14, 2)
+  observations String?
+  sortOrder   Int     @default(0)
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+}
+
+model Document {
+  id             String   @id @default(cuid())
+  type           String
+  documentNumber String
+  title          String?
+  clientId       String?
+  quoteId        String?
+  tenderId       String?
+  workOrderId    String?
+  clientName     String?
+  company        String?
+  sellerName     String?
+  netAmount      Decimal  @default(0) @db.Decimal(14, 2)
+  taxAmount      Decimal  @default(0) @db.Decimal(14, 2)
+  totalAmount    Decimal  @default(0) @db.Decimal(14, 2)
+  status         String   @default("Borrador")
+  origin         String?
+  tags           Json?
+  observations   String?
+  filePdfUrl     String?
+  fileExcelUrl   String?
+  payload        Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client    Client?    @relation(fields: [clientId], references: [id])
+  quote     Quote?     @relation(fields: [quoteId], references: [id])
+  tender    Tender?    @relation(fields: [tenderId], references: [id])
+  workOrder WorkOrder? @relation(fields: [workOrderId], references: [id])
+
+  @@unique([type, documentNumber])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Tender {
+  id                         String   @id @default(cuid())
+  tenderId                   String?  @unique
+  title                      String
+  buyer                      String?
+  buyerRut                   String?
+  budget                     Decimal? @db.Decimal(14, 2)
+  closingDate                DateTime?
+  openingDate                DateTime?
+  adjudicationDate           DateTime?
+  contractSignDate           DateTime?
+  status                     String   @default("Borrador")
+  riskLevel                  String   @default("Medio")
+  summary                    String?
+  object                     String?
+  administrativeRequirements Json?
+  technicalRequirements      Json?
+  economicRequirements       Json?
+  requiredDocuments          Json?
+  essentialDocuments         Json?
+  evaluationCriteria         Json?
+  guarantees                 Json?
+  paymentTerms               String?
+  penalties                  Json?
+  technicalItems             Json?
+  suggestedQuestions         Json?
+  risks                      Json?
+  observations               String?
+  sourceText                 String?
+  sourceFiles                Json?
+  fieldSources               Json?
+  diagnostics                Json?
+  createdByEmail             String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  documents Document[]
+
+  @@index([status])
+  @@index([riskLevel])
+  @@index([closingDate])
+}
+
+model WorkOrder {
+  id             String   @id @default(cuid())
+  title          String
+  type           String
+  client         String?
+  company        String?
+  quoteNumber    String?
+  requesterId    String?
+  requesterName  String?
+  requesterEmail String?
+  requesterRole  String?
+  assigneeId     String?
+  assigneeName   String?
+  assigneeEmail  String?
+  assigneeRole   String?
+  sourceArea     String
+  targetArea     String
+  priority       String   @default("Media")
+  status         String   @default("Pendiente")
+  dueDate        DateTime?
+  description    String
+  requirements   String?
+  deliverables   String?
+  observations   String?
+  payload        Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  requester User? @relation("WorkOrderRequester", fields: [requesterId], references: [id])
+  assignee  User? @relation("WorkOrderAssignee", fields: [assigneeId], references: [id])
+  documents Document[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([targetArea])
+  @@index([dueDate])
+}
+
+model Supplier {
+  id               String   @id @default(cuid())
+  name             String
+  rut              String?  @unique
+  contactName      String?
+  phone            String?
+  email            String?
+  category         String?
+  paymentTerms     String?
+  bankName         String?
+  bankAccountType  String?
+  bankAccountNumber String?
+  bankAccountEmail String?
+  status           String   @default("Activo")
+  observations     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  financialMovements FinancialMovement[]
+
+  @@index([name])
+  @@index([status])
+}
+
+model FinancialMovement {
+  id                 String   @id @default(cuid())
+  type               String
+  category           String
+  documentType       String?
+  documentNumber     String?
+  client             String?
+  company            String?
+  supplierId         String?
+  supplierName       String?
+  quoteId            String?
+  quoteNumber        String?
+  tenderId           String?
+  workOrderId        String?
+  description        String
+  netAmount          Decimal  @default(0) @db.Decimal(14, 2)
+  taxRate            Decimal  @default(19) @db.Decimal(5, 2)
+  taxAmount          Decimal  @default(0) @db.Decimal(14, 2)
+  isTaxExempt        Boolean  @default(false)
+  totalAmount        Decimal  @default(0) @db.Decimal(14, 2)
+  paidAmount         Decimal  @default(0) @db.Decimal(14, 2)
+  pendingAmount      Decimal  @default(0) @db.Decimal(14, 2)
+  issueDate          DateTime @default(now())
+  dueDate            DateTime?
+  paymentDate        DateTime?
+  status             String   @default("Sin pagar")
+  paymentMethod      String?
+  paymentTerms       String?
+  responsibleName    String?
+  responsibleEmail   String?
+  observations       String?
+  sourceType         String?
+  sourceQuoteLocked  Boolean  @default(false)
+  isAdditionalMovement Boolean @default(false)
+  auditLog           Json?
+  payload            Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+  quote    Quote?    @relation(fields: [quoteId], references: [id])
+  payments Payment[]
+
+  @@index([type])
+  @@index([status])
+  @@index([quoteNumber])
+  @@index([dueDate])
+}
+
+model Payment {
+  id                  String   @id @default(cuid())
+  financialMovementId String
+  amount              Decimal  @db.Decimal(14, 2)
+  paymentDate         DateTime @default(now())
+  paymentMethod       String?
+  reference           String?
+  responsibleName     String?
+  responsibleEmail    String?
+  observations        String?
+  auditLog            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  financialMovement FinancialMovement @relation(fields: [financialMovementId], references: [id], onDelete: Cascade)
+
+  @@index([financialMovementId])
+  @@index([paymentDate])
+}
+
+model ImportJob {
+  id              String   @id @default(cuid())
+  module          String
+  sourceFileName  String?
+  sourceType      String?
+  status          String   @default("Pendiente")
+  totalRows       Int      @default(0)
+  importedRows    Int      @default(0)
+  failedRows      Int      @default(0)
+  warnings        Json?
+  errors          Json?
+  metadata        Json?
+  createdByEmail  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([module])
+  @@index([status])
+  @@index([createdAt])
+}

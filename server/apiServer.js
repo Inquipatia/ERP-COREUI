@@ -82,7 +82,7 @@ app.get('/health', (_request, response) => {
   })
 })
 
-app.use('/api/auth', authRoutes)
+
 app.get('/api/me', requireAuth, (request, response) => {
   response.json({ user: request.currentUser })
 })
@@ -96,7 +96,49 @@ app.use('/api/finance', financeRoutes)
 app.use('/api/suppliers', supplierRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/dev', devRoutes)
+app.get('/api/health/db', async (_request, response) => {
+  try {
+    const dataAdapterMode = process.env.RUBIK_DATA_ADAPTER || 'json'
+    const hasDatabaseUrl = Boolean(process.env.DATABASE_URL)
 
+    if (!['prisma', 'mysql', 'postgres'].includes(dataAdapterMode)) {
+      return response.json({
+        ok: true,
+        service: 'rubik-erp-api',
+        adapter: dataAdapterMode,
+        database: 'json-file',
+        hasDatabaseUrl,
+      })
+    }
+
+    const { getPrisma } = require('./services/prismaClient')
+    const prisma = getPrisma()
+
+    await prisma.$queryRaw`SELECT 1`
+
+    return response.json({
+      ok: true,
+      service: 'rubik-erp-api',
+      adapter: dataAdapterMode,
+      database: 'connected',
+      hasDatabaseUrl,
+    })
+  } catch (error) {
+    console.error('Database health error:', {
+      message: error.message,
+      code: error.code,
+    })
+
+    return response.status(503).json({
+      ok: false,
+      service: 'rubik-erp-api',
+      database: 'error',
+      message: 'No se pudo conectar con la base de datos.',
+      code: error.code || null,
+    })
+  }
+})
+app.use('/api/auth', authRoutes)
 app.use('/api', (_request, response) => {
   response.status(404).json({ error: 'API route not found' })
 })
