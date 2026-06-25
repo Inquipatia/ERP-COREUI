@@ -1,0 +1,13 @@
+{
+  "files.exclude": {
+    "**/.git": true,
+    "**/.vite": true,
+    "**/build": true,
+    "**/coverage": true,
+    "**/dist": true,
+    "**/node_modules": true,
+    "**/tmp": true,
+    "src/services/prueba*.txt": true,
+    "src/views/pages/login/*.txt": true
+  }
+}
