@@ -1,8 +1,13 @@
 require('dotenv').config({ quiet: true })
 
 const DATABASE_URL_ERROR =
-  'DATABASE_URL no existe. Configura PostgreSQL en .env, por ejemplo: ' +
-  'DATABASE_URL="postgresql://postgres:postgres@localhost:5432/rubik_erp?schema=public"'
+  'DATABASE_URL no existe. Configura la conexión de base de datos.'
+
+const DB_PROVIDER = 'mysql'
+const hasDatabaseUrl = Boolean(process.env.DATABASE_URL)
+
+console.log('[Rubik Prisma] DATABASE_URL existe:', hasDatabaseUrl)
+console.log('[Rubik Prisma] DB provider:', DB_PROVIDER)
 
 const assertDatabaseUrl = () => {
   if (!process.env.DATABASE_URL) {

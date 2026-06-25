@@ -695,7 +695,9 @@ const jsonDataAdapter = {
   getCounts,
 }
 
-const adapterMode = String(process.env.RUBIK_DATA_ADAPTER || '').trim().toLowerCase()
+const explicitAdapterMode = String(process.env.RUBIK_DATA_ADAPTER || '').trim().toLowerCase()
+const adapterMode =
+  explicitAdapterMode || (process.env.NODE_ENV === 'production' ? 'prisma' : 'json')
 
 const shouldUsePrismaAdapter = ['prisma', 'mysql', 'postgres'].includes(adapterMode)
 

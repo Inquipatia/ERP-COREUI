@@ -3,22 +3,22 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String?
-  role         String
-  status       String   @default("Activo")
-  position     String?
-  area         String?
-  permissions  Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  password    String?
+  role        String
+  status      String   @default("Activo")
+  position    String?
+  area        String?
+  permissions Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   quotesRequested    Quote[]     @relation("QuoteRequester")
   workOrdersRequested WorkOrder[] @relation("WorkOrderRequester")

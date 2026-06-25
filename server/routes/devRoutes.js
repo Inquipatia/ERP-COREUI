@@ -6,9 +6,15 @@ const router = express.Router()
 
 router.get('/status', async (_request, response, next) => {
   try {
+    const adapterMode =
+      process.env.RUBIK_DATA_ADAPTER ||
+      (process.env.NODE_ENV === 'production' ? 'prisma' : 'json')
+    const usesDatabase = ['prisma', 'mysql', 'postgres'].includes(adapterMode)
+
     response.json({
       status: 'ok',
-      storage: process.env.RUBIK_DATA_ADAPTER === 'postgres' ? 'postgresql' : 'server/data/rubik-db.json',
+      storage: usesDatabase ? 'database' : 'server/data/rubik-db.json',
+      adapter: usesDatabase ? 'prisma' : 'json',
       counts: await dataAdapter.getCounts(),
     })
   } catch (error) {

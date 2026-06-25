@@ -15,9 +15,10 @@
   "scripts": {
     "api-server": "node server/apiServer.js",
     "build": "vite build",
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --name init",
     "db:migrate-json": "node server/services/jsonToPostgresMigration.js",
+    "db:seed-users": "node server/services/seedProductionUsers.js",
     "db:studio": "prisma studio",
     "dev": "vite",
     "lint": "eslint",
