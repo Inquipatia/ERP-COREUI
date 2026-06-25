@@ -14,6 +14,7 @@ const financeRoutes = require('./routes/financeRoutes')
 const supplierRoutes = require('./routes/supplierRoutes')
 const userRoutes = require('./routes/userRoutes')
 const devRoutes = require('./routes/devRoutes')
+const pdfRoutes = require('./routes/pdfRoutes')
 const { attachUser, requireAuth } = require('./middleware/authMiddleware')
 const { getPrisma } = require('./services/prismaClient')
 
@@ -59,6 +60,7 @@ const corsOptions = {
     'X-User-Role',
     'X-User-Permissions',
   ],
+  exposedHeaders: ['Content-Disposition', 'Content-Type', 'Content-Length'],
   credentials: true,
 }
 
@@ -125,6 +127,7 @@ app.use('/api/finance', financeRoutes)
 app.use('/api/suppliers', supplierRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/dev', devRoutes)
+app.use('/api', pdfRoutes)
 app.use('/api', (_request, response) => {
   response.status(404).json({ error: 'API route not found' })
 })
