@@ -30,7 +30,7 @@ import {
   CTableRow,
 } from '@coreui/react'
 import { useAuth } from '../../../context/AuthContext'
-import { get as apiGet, post as apiPost, put as apiPut, remove as apiDelete } from '../../../services/apiClient'
+import { createTender, deleteTender, listTenders, updateTender } from '../../../services/tendersApi'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 import { readStorage, writeStorage } from '../../../utils/storage'
 import {
@@ -388,7 +388,7 @@ const Licitaciones = () => {
 
     const loadTendersFromApi = async () => {
       try {
-        const payload = await apiGet('/tenders')
+        const payload = await listTenders()
         const apiTenders = getApiItems(payload).map(normalizeTender)
 
         if (!isMounted) return
@@ -598,7 +598,7 @@ const Licitaciones = () => {
     })
 
     try {
-      const savedTender = normalizeTender(await apiPut(`/tenders/${tender.id}`, updatedTender))
+      const savedTender = normalizeTender(await updateTender(tender.id, updatedTender))
       setTenders((currentTenders) =>
         currentTenders.map((currentTender) =>
           currentTender.id === tender.id ? savedTender : currentTender,
@@ -654,7 +654,7 @@ const Licitaciones = () => {
 
     try {
       const savedTender = normalizeTender(
-        editingId ? await apiPut(`/tenders/${editingId}`, payload) : await apiPost('/tenders', payload),
+        editingId ? await updateTender(editingId, payload) : await createTender(payload),
       )
 
       setTenders((currentTenders) => {
@@ -688,7 +688,7 @@ const Licitaciones = () => {
 
   const handleDelete = async (tenderId) => {
     try {
-      await apiDelete(`/tenders/${tenderId}`)
+      await deleteTender(tenderId)
       setTenders((currentTenders) => currentTenders.filter((tender) => tender.id !== tenderId))
       setIsApiFallback(false)
       setMessage('Licitación eliminada de la API.')
@@ -714,7 +714,7 @@ const Licitaciones = () => {
     })
 
     try {
-      const savedTender = normalizeTender(await apiPost('/tenders', duplicatedTender))
+      const savedTender = normalizeTender(await createTender(duplicatedTender))
       setTenders((currentTenders) => [savedTender, ...currentTenders])
       setIsApiFallback(false)
       setMessage('Licitación duplicada en la API.')

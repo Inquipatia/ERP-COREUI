@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   CAlert,
   CBadge,
@@ -28,6 +28,7 @@ import {
 import { mockQuotes } from '../../data/mockQuotes'
 import { createLocalId, STORAGE_KEYS, useLocalStorageState } from '../../utils/storage'
 import { exportListToExcel } from '../../utils/exportListToExcel'
+import { createQuote, deleteQuote, listQuotes } from '../../services/quotesApi'
 
 const emptyFilters = {
   search: '',
@@ -173,13 +174,36 @@ const getCompletionColor = (percent) => {
 }
 
 const Cotizaciones = () => {
-  const [quotes, setQuotes] = useLocalStorageState(
+  const [localQuotes, setLocalQuotes] = useLocalStorageState(
     STORAGE_KEYS.quotes,
     mockQuotes.map(normalizeQuote),
   )
+  const [apiQuotes, setApiQuotes] = useState(null)
+  const quotes = apiQuotes !== null ? apiQuotes : localQuotes
   const [filters, setFilters] = useState(emptyFilters)
   const [message, setMessage] = useState('')
   const [selectedQuote, setSelectedQuote] = useState(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadQuotes = async () => {
+      try {
+        const payload = await listQuotes()
+        const items = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : []
+        if (isMounted) setApiQuotes(items.map(normalizeQuote))
+      } catch (apiError) {
+        console.warn('Usando fallback local porque la API no respondió', apiError)
+        if (isMounted) setApiQuotes(null)
+      }
+    }
+
+    loadQuotes()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const normalizedQuotes = useMemo(() => quotes.map(normalizeQuote), [quotes])
 
@@ -228,7 +252,12 @@ const Cotizaciones = () => {
     setFilters((currentFilters) => ({ ...currentFilters, [name]: value }))
   }
 
-  const handleDuplicate = (quote) => {
+  const syncQuotesState = (updater) => {
+    setLocalQuotes(updater)
+    if (apiQuotes !== null) setApiQuotes(updater)
+  }
+
+  const handleDuplicate = async (quote) => {
     const numericNumbers = normalizedQuotes
       .map((currentQuote) => Number(currentQuote.quoteNumber))
       .filter((quoteNumber) => Number.isFinite(quoteNumber))
@@ -240,13 +269,26 @@ const Cotizaciones = () => {
       quoteNumber: nextNumber,
       status: 'Borrador',
     })
+    let quoteToStore = duplicatedQuote
 
-    setQuotes((currentQuotes) => [...currentQuotes, duplicatedQuote])
+    try {
+      quoteToStore = normalizeQuote(await createQuote(duplicatedQuote))
+    } catch (apiError) {
+      console.warn('Usando fallback local porque la API no respondió', apiError)
+    }
+
+    syncQuotesState((currentQuotes) => [...currentQuotes, quoteToStore])
     setMessage(`Cotización ${quote.quoteNumber} duplicada como ${nextNumber}.`)
   }
 
-  const handleDelete = (quote) => {
-    setQuotes((currentQuotes) =>
+  const handleDelete = async (quote) => {
+    try {
+      await deleteQuote(quote.id)
+    } catch (apiError) {
+      console.warn('Usando fallback local porque la API no respondió', apiError)
+    }
+
+    syncQuotesState((currentQuotes) =>
       currentQuotes.filter((currentQuote) => currentQuote.id !== quote.id),
     )
     setMessage(`Cotización ${quote.quoteNumber} eliminada localmente.`)

@@ -29,7 +29,7 @@ import {
 } from '@coreui/react'
 import { erpRoles, mockUsers } from '../../data/mockUsers'
 import { createLocalId, readStorage, STORAGE_KEYS, writeStorage } from '../../utils/storage'
-import { get as apiGet, post as apiPost, put as apiPut, remove as apiDelete } from '../../services/apiClient'
+import { createUser, deleteUser, listUsers, updateUser } from '../../services/usersApi'
 import { exportListToExcel } from '../../utils/exportListToExcel'
 import { useAuth } from '../../context/AuthContext'
 
@@ -202,7 +202,7 @@ const Usuarios = () => {
 
     const loadUsersFromApi = async () => {
       try {
-        const payload = await apiGet('/users')
+        const payload = await listUsers()
         const apiUsers = getApiItems(payload).map(normalizeUser)
 
         if (!isMounted) return
@@ -378,7 +378,7 @@ const Usuarios = () => {
 
     try {
       const savedUser = normalizeUser(
-        editingId ? await apiPut(`/users/${editingId}`, payload) : await apiPost('/users', payload),
+        editingId ? await updateUser(editingId, payload) : await createUser(payload),
       )
 
       setUsers((currentUsers) => {
@@ -420,7 +420,7 @@ const Usuarios = () => {
     }
 
     try {
-      await apiDelete(`/users/${userId}`)
+      await deleteUser(userId)
       setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId))
       setIsApiFallback(false)
       setMessage('Usuario eliminado de la API.')
@@ -442,7 +442,7 @@ const Usuarios = () => {
     const updatedUser = normalizeUser({ ...user, status: nextStatus })
 
     try {
-      const savedUser = normalizeUser(await apiPut(`/users/${user.id}`, updatedUser))
+      const savedUser = normalizeUser(await updateUser(user.id, updatedUser))
       setUsers((currentUsers) =>
         currentUsers.map((currentUser) => (currentUser.id === user.id ? savedUser : currentUser)),
       )

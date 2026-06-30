@@ -12,7 +12,11 @@ import {
 import { CChartBar, CChartDoughnut, CChartLine } from '@coreui/react-chartjs'
 
 import { useAuth } from '../../../context/AuthContext'
-import { get as apiGet } from '../../../services/apiClient'
+import {
+  getDashboardActivity,
+  getDashboardStats,
+  getDashboardSummary,
+} from '../../../services/dashboardApi'
 import { mockClients } from '../../../data/mockClients'
 import { mockDocuments } from '../../../data/mockDocuments'
 import { mockMarketingMetrics } from '../../../data/mockMarketingMetrics'
@@ -315,6 +319,11 @@ const normalizeAggregateEntries = (value) => {
   return []
 }
 
+const preferAggregateEntries = (apiValue, fallbackEntries = []) => {
+  const apiEntries = normalizeAggregateEntries(apiValue)
+  return apiEntries.length > 0 ? apiEntries : fallbackEntries
+}
+
 const mergeFinanceSummary = (localSummary, apiSummary) => {
   if (!apiSummary || typeof apiSummary !== 'object') return localSummary
 
@@ -384,8 +393,12 @@ const DashboardERP = () => {
   const { hasPermission } = useAuth()
   const canViewFinance = hasPermission('finance.view')
   const [apiDashboardSummary, setApiDashboardSummary] = useState(null)
+  const [apiDashboardStats, setApiDashboardStats] = useState(null)
+  const [apiDashboardActivity, setApiDashboardActivity] = useState(null)
   const [apiDocuments, setApiDocuments] = useState(null)
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true)
   const [isDashboardFallback, setIsDashboardFallback] = useState(false)
+  const [dashboardError, setDashboardError] = useState('')
 
   const [clients] = useLocalStorageState(STORAGE_KEYS.clients, mockClients.map(normalizeClient))
   const [materials] = useLocalStorageState(STORAGE_KEYS.materials, mockMaterials.map(normalizeMaterial))
@@ -401,47 +414,55 @@ const DashboardERP = () => {
     let isMounted = true
 
     const loadDashboardFromApi = async () => {
-      let summaryWasLoaded = false
+      setIsDashboardLoading(true)
+      setDashboardError('')
 
-      try {
-        const summaryPayload = await apiGet('/dashboard/summary')
-        summaryWasLoaded = true
+      const [summaryResult, statsResult, activityResult] = await Promise.allSettled([
+        getDashboardSummary(),
+        getDashboardStats(),
+        getDashboardActivity(),
+      ])
 
-        if (isMounted) {
-          setApiDashboardSummary(summaryPayload || {})
-        }
-      } catch (error) {
-        console.warn('API dashboard summary unavailable; using local fallback.', error)
+      if (!isMounted) return
 
-        if (isMounted) {
-          setApiDashboardSummary(null)
-        }
+      if (summaryResult.status === 'fulfilled') {
+        setApiDashboardSummary(summaryResult.value || {})
+      } else {
+        console.warn('Usando fallback local porque la API no respondió', summaryResult.reason)
+        setApiDashboardSummary(null)
       }
 
-      try {
-        const documentsPayload = await apiGet('/documents')
-        const documentItems = Array.isArray(documentsPayload?.items)
-          ? documentsPayload.items
-          : Array.isArray(documentsPayload?.documents)
-            ? documentsPayload.documents
-            : Array.isArray(documentsPayload)
-              ? documentsPayload
-              : []
-
-        if (isMounted) {
-          setApiDocuments(documentItems.map(normalizeDocument))
-        }
-      } catch (error) {
-        console.warn('API documents unavailable for dashboard; using local document fallback.', error)
-
-        if (isMounted) {
-          setApiDocuments(null)
-        }
+      if (statsResult.status === 'fulfilled') {
+        setApiDashboardStats(statsResult.value || {})
+      } else {
+        console.warn('Usando fallback local porque la API no respondió', statsResult.reason)
+        setApiDashboardStats(null)
       }
 
-      if (isMounted) {
-        setIsDashboardFallback(!summaryWasLoaded)
+      if (activityResult.status === 'fulfilled') {
+        setApiDashboardActivity(activityResult.value || {})
+      } else {
+        console.warn('Usando fallback local porque la API no respondió', activityResult.reason)
+        setApiDashboardActivity(null)
       }
+
+      const apiPayload = statsResult.status === 'fulfilled' ? statsResult.value : summaryResult.value
+      const documentItems = pickApiArray(apiPayload, [
+        'collections.documents',
+        'recent.documents',
+        'documents.items',
+        'documents.list',
+        'documents.records',
+      ])
+
+      setApiDocuments(Array.isArray(documentItems) ? documentItems.map(normalizeDocument) : null)
+      setIsDashboardFallback(summaryResult.status !== 'fulfilled' && statsResult.status !== 'fulfilled')
+      setDashboardError(
+        summaryResult.status !== 'fulfilled' && statsResult.status !== 'fulfilled'
+          ? 'No se pudo conectar con la API del dashboard.'
+          : '',
+      )
+      setIsDashboardLoading(false)
     }
 
     loadDashboardFromApi()
@@ -454,32 +475,34 @@ const DashboardERP = () => {
   const normalizedQuotes = useMemo(() => quotes.map(normalizeQuote), [quotes])
   const normalizedWorkOrders = useMemo(() => workOrders.map(normalizeWorkOrder), [workOrders])
   const normalizedTenders = useMemo(() => tenders.map(normalizeTender), [tenders])
+  const dashboardApiPayload = apiDashboardStats || apiDashboardSummary
   const localDocuments = useMemo(() => {
     const normalizedStoredDocuments = storedDocuments.map(normalizeDocument)
     return normalizedStoredDocuments.length > 0 ? normalizedStoredDocuments : mockDocuments.map(normalizeDocument)
   }, [storedDocuments])
   const summaryDocuments = useMemo(
     () =>
-      pickApiArray(apiDashboardSummary, [
+      pickApiArray(dashboardApiPayload, [
         'documents.items',
         'documents.list',
         'documents.records',
         'collections.documents',
+        'recent.documents',
       ]),
-    [apiDashboardSummary],
+    [dashboardApiPayload],
   )
   const documents = useMemo(() => {
     if (apiDocuments !== null) return apiDocuments.map(normalizeDocument)
     if (summaryDocuments !== null) return summaryDocuments.map(normalizeDocument)
-    if (apiDashboardSummary) return []
+    if (dashboardApiPayload) return []
 
     return localDocuments
-  }, [apiDashboardSummary, apiDocuments, localDocuments, summaryDocuments])
+  }, [apiDocuments, dashboardApiPayload, localDocuments, summaryDocuments])
 
   const apiDocumentsByStatus = useMemo(
     () =>
       normalizeAggregateEntries(
-        pickApiValue(apiDashboardSummary, [
+        pickApiValue(dashboardApiPayload, [
           'documentsByStatus',
           'documentStats.byStatus',
           'documents.byStatus',
@@ -487,12 +510,12 @@ const DashboardERP = () => {
           'stats.documents.byStatus',
         ]),
       ),
-    [apiDashboardSummary],
+    [dashboardApiPayload],
   )
   const apiDocumentsByType = useMemo(
     () =>
       normalizeAggregateEntries(
-        pickApiValue(apiDashboardSummary, [
+        pickApiValue(dashboardApiPayload, [
           'documentsByType',
           'documentStats.byType',
           'documents.byType',
@@ -500,26 +523,37 @@ const DashboardERP = () => {
           'stats.documents.byType',
         ]),
       ),
-    [apiDashboardSummary],
+    [dashboardApiPayload],
   )
 
   const dashboardData = useMemo(() => {
     const recentMonths = getRecentMonths(6)
     const financeSummary = mergeFinanceSummary(
       summarizeMovements(financeMovements),
-      pickApiValue(apiDashboardSummary, ['financeSummary', 'finance.summary', 'summary.finance']),
+      pickApiValue(dashboardApiPayload, ['financialSummary', 'financeSummary', 'finance.summary', 'summary.finance']),
     )
     const normalizedFinanceMovements = Array.isArray(financeMovements) ? financeMovements : []
-    const monthlyQuoteTotals = recentMonths.map((month) =>
+    const localMonthlyQuoteTotals = recentMonths.map((month) =>
       normalizedQuotes
         .filter((quote) => getMonthKey(parseDocumentDate(quote.date)) === month.key)
         .reduce((total, quote) => total + quote.total, 0),
     )
-    const monthlyQuoteCounts = recentMonths.map(
+    const localMonthlyQuoteCounts = recentMonths.map(
       (month) => normalizedQuotes.filter((quote) => getMonthKey(parseDocumentDate(quote.date)) === month.key).length,
     )
-    const totalQuoted = normalizedQuotes.reduce((total, quote) => total + quote.total, 0)
-    const averageQuote = normalizedQuotes.length ? totalQuoted / normalizedQuotes.length : 0
+    const monthlyQuoteTotals = toNumericSeries(
+      pickApiValue(dashboardApiPayload, ['monthly.quoteTotals', 'charts.monthly.quoteTotals']) || localMonthlyQuoteTotals,
+    )
+    const monthlyQuoteCounts = toNumericSeries(
+      pickApiValue(dashboardApiPayload, ['monthly.quoteCounts', 'charts.monthly.quoteCounts']) || localMonthlyQuoteCounts,
+    )
+    const totalQuoted = pickApiNumber(
+      dashboardApiPayload,
+      ['totals.quoteTotalAmount', 'quoteTotalAmount', 'totals.totalQuoted'],
+      normalizedQuotes.reduce((total, quote) => total + quote.total, 0),
+    )
+    const quoteCount = pickApiNumber(dashboardApiPayload, ['totals.quotes', 'quotes.total', 'quoteCount'], normalizedQuotes.length)
+    const averageQuote = quoteCount ? totalQuoted / quoteCount : 0
     const activeQuotes = normalizedQuotes.filter(
       (quote) => !['Rechazada', 'Anulada', 'Cerrada'].includes(quote.status),
     )
@@ -527,9 +561,18 @@ const DashboardERP = () => {
     const computedDocumentsByType = Object.entries(aggregateBy(documents, (document) => document.tipoDocumento))
     const documentsByStatus = apiDocumentsByStatus.length > 0 ? apiDocumentsByStatus : computedDocumentsByStatus
     const documentsByType = apiDocumentsByType.length > 0 ? apiDocumentsByType : computedDocumentsByType
-    const quotesByStatus = Object.entries(aggregateBy(normalizedQuotes, (quote) => quote.status))
-    const workOrdersByStatus = Object.entries(aggregateBy(normalizedWorkOrders, (order) => order.status))
-    const workOrdersByArea = Object.entries(aggregateBy(normalizedWorkOrders, (order) => order.targetArea))
+    const quotesByStatus = preferAggregateEntries(
+      pickApiValue(dashboardApiPayload, ['quotesByStatus', 'charts.quotes.byStatus']),
+      Object.entries(aggregateBy(normalizedQuotes, (quote) => quote.status)),
+    )
+    const workOrdersByStatus = preferAggregateEntries(
+      pickApiValue(dashboardApiPayload, ['workOrdersByStatus', 'charts.workOrders.byStatus']),
+      Object.entries(aggregateBy(normalizedWorkOrders, (order) => order.status)),
+    )
+    const workOrdersByArea = preferAggregateEntries(
+      pickApiValue(dashboardApiPayload, ['workOrdersByArea', 'charts.workOrders.byArea']),
+      Object.entries(aggregateBy(normalizedWorkOrders, (order) => order.targetArea)),
+    )
     const ordersInReview = normalizedWorkOrders.filter((order) => normalizeText(order.status).includes('revision'))
     const pendingOrders = normalizedWorkOrders.filter((order) =>
       ['Borrador', 'Pendiente', 'Recibida', 'En proceso', 'Solicita antecedentes', 'En revision'].some((status) =>
@@ -538,7 +581,10 @@ const DashboardERP = () => {
     )
     const urgentOrders = normalizedWorkOrders.filter((order) => order.priority === 'Urgente')
     const overdueOrders = normalizedWorkOrders.filter(isWorkOrderOverdue)
-    const tendersByRisk = Object.entries(aggregateBy(normalizedTenders, (tender) => tender.riskLevel))
+    const tendersByRisk = preferAggregateEntries(
+      pickApiValue(dashboardApiPayload, ['tendersByRisk', 'charts.tenders.byRisk', 'charts.tenders.byRiskLevel']),
+      Object.entries(aggregateBy(normalizedTenders, (tender) => tender.riskLevel)),
+    )
     const activeTenders = normalizedTenders.filter(
       (tender) => !['Perdida', 'Descartada', 'Adjudicada'].includes(tender.status),
     )
@@ -561,33 +607,42 @@ const DashboardERP = () => {
     const latestWorkOrders = [...normalizedWorkOrders]
       .sort((firstOrder, secondOrder) => new Date(secondOrder.updatedAt || 0) - new Date(firstOrder.updatedAt || 0))
       .slice(0, 6)
-    const topClients = Object.entries(
-      aggregateBy(normalizedQuotes, (quote) => quote.company || quote.client, (quote) => quote.total),
+    const apiRecentActivity =
+      pickApiArray(apiDashboardActivity, ['recentActivity']) ||
+      pickApiArray(dashboardApiPayload, ['recentActivity'])
+    const recentActivity = Array.isArray(apiRecentActivity) ? apiRecentActivity : []
+    const topClients = preferAggregateEntries(
+      pickApiValue(dashboardApiPayload, ['quotesByClient', 'charts.quotes.byClient', 'byClient']),
+      Object.entries(aggregateBy(normalizedQuotes, (quote) => quote.company || quote.client, (quote) => quote.total))
     )
       .sort(([, firstValue], [, secondValue]) => secondValue - firstValue)
       .slice(0, 5)
-    const topSellers = Object.entries(
-      aggregateBy(normalizedQuotes, (quote) => quote.seller, (quote) => quote.total),
+    const topSellers = preferAggregateEntries(
+      pickApiValue(dashboardApiPayload, ['quotesBySeller', 'charts.quotes.bySeller', 'byUser']),
+      Object.entries(aggregateBy(normalizedQuotes, (quote) => quote.seller, (quote) => quote.total))
     )
       .sort(([, firstValue], [, secondValue]) => secondValue - firstValue)
       .slice(0, 5)
     const marketingChannels = mockMarketingMetrics.channels || []
-    const monthlyIncome = recentMonths.map((month) =>
+    const localMonthlyIncome = recentMonths.map((month) =>
       normalizedFinanceMovements
         .filter((movement) => movement.type === 'Ingreso' && getMonthKey(getDateFromValue(movement.issueDate || movement.createdAt)) === month.key)
         .reduce((total, movement) => total + getNumberValue(movement.totalAmount), 0),
     )
-    const monthlyExpenses = recentMonths.map((month) =>
+    const localMonthlyExpenses = recentMonths.map((month) =>
       normalizedFinanceMovements
         .filter((movement) => movement.type === 'Egreso' && getMonthKey(getDateFromValue(movement.issueDate || movement.createdAt)) === month.key)
         .reduce((total, movement) => total + getNumberValue(movement.totalAmount), 0),
     )
-    const monthlyActivity = recentMonths.map((month) => {
+    const monthlyIncome = toNumericSeries(pickApiValue(dashboardApiPayload, ['monthly.income']) || localMonthlyIncome)
+    const monthlyExpenses = toNumericSeries(pickApiValue(dashboardApiPayload, ['monthly.expenses']) || localMonthlyExpenses)
+    const localMonthlyActivity = recentMonths.map((month) => {
       const quoteCount = normalizedQuotes.filter((quote) => getMonthKey(parseDocumentDate(quote.date || quote.createdAt)) === month.key).length
       const documentCount = documents.filter((document) => getMonthKey(getDateFromValue(document.fecha || document.createdAt)) === month.key).length
       const orderCount = normalizedWorkOrders.filter((order) => getMonthKey(getDateFromValue(order.createdAt || order.updatedAt)) === month.key).length
       return quoteCount + documentCount + orderCount
     })
+    const monthlyActivity = toNumericSeries(pickApiValue(dashboardApiPayload, ['monthly.activity']) || localMonthlyActivity)
 
     return {
       activeQuotes,
@@ -597,7 +652,7 @@ const DashboardERP = () => {
       documentsByStatus,
       documentsByType,
       documentCount: pickApiNumber(
-        apiDashboardSummary,
+        dashboardApiPayload,
         ['documentsCount', 'documentCount', 'counts.documents', 'totals.documents', 'documents.total', 'documents'],
         documents.length,
       ),
@@ -615,6 +670,7 @@ const DashboardERP = () => {
       overdueOrders,
       pendingOrders,
       quotesByStatus,
+      recentActivity,
       recentMonths,
       tendersByRisk,
       topClients,
@@ -626,9 +682,10 @@ const DashboardERP = () => {
       workOrdersByStatus,
     }
   }, [
-    apiDashboardSummary,
     apiDocumentsByStatus,
     apiDocumentsByType,
+    apiDashboardActivity,
+    dashboardApiPayload,
     documents,
     financeMovements,
     normalizedQuotes,
@@ -696,7 +753,7 @@ const DashboardERP = () => {
                   </CBadge>
                   <h1 className="display-6 fw-bold mb-3">Control visual de ventas, documentos y operaciones</h1>
                   <p className="mb-4" style={styles.muted}>
-                    Indicadores vivos desde localStorage/API temporal, respetando permisos y sin duplicar calculos financieros.
+                    Indicadores vivos desde API, respetando permisos y sin duplicar calculos financieros.
                   </p>
                   <div className="d-flex gap-2 flex-wrap">
                     <QuickAction label="Nueva cotizacion" href="#/cotizador-5000/nueva-cotizacion" color="primary" />
@@ -727,6 +784,22 @@ const DashboardERP = () => {
             </CCardBody>
           </CCard>
         </CCol>
+
+        {isDashboardLoading && (
+          <CCol xs={12}>
+            <CAlert color="info" className="mb-0 rounded-4 shadow-sm">
+              Actualizando datos del ERP desde la API...
+            </CAlert>
+          </CCol>
+        )}
+
+        {dashboardError && !isDashboardLoading && (
+          <CCol xs={12}>
+            <CAlert color="danger" className="mb-0 rounded-4 shadow-sm">
+              {dashboardError}
+            </CAlert>
+          </CCol>
+        )}
 
         {isDashboardFallback && (
           <CCol xs={12}>
@@ -1003,26 +1076,41 @@ const DashboardERP = () => {
                 <CBadge color="info">Live</CBadge>
               </div>
               <div className="d-flex flex-column gap-3">
-                {dashboardData.latestDocuments.slice(0, 4).map((document) => (
-                  <TimelineItem
-                    key={document.id}
-                    title={`${document.tipoDocumento} ${document.numeroDocumento}`}
-                    subtitle={`${document.empresa || document.cliente || 'Sin cliente'} / ${document.vendedor || 'Sin vendedor'}`}
-                    badge={document.estado}
-                    color={getStatusColor(document.estado)}
-                    meta={formatDate(document.fecha)}
-                  />
-                ))}
-                {dashboardData.latestWorkOrders.slice(0, 3).map((order) => (
-                  <TimelineItem
-                    key={order.id}
-                    title={order.title}
-                    subtitle={`${order.sourceArea || 'Origen'} -> ${order.targetArea || 'Responsable'}`}
-                    badge={order.priority}
-                    color={getPriorityColor(order.priority)}
-                    meta={formatDate(order.dueDate)}
-                  />
-                ))}
+                {dashboardData.recentActivity.length > 0 ? (
+                  dashboardData.recentActivity.slice(0, 7).map((activity) => (
+                    <TimelineItem
+                      key={activity.id}
+                      title={activity.title || activity.module || 'Actividad ERP'}
+                      subtitle={activity.subtitle || activity.module || 'Registro actualizado desde API'}
+                      badge={activity.status || activity.type}
+                      color={getStatusColor(activity.status)}
+                      meta={formatDate(activity.date)}
+                    />
+                  ))
+                ) : (
+                  <>
+                    {dashboardData.latestDocuments.slice(0, 4).map((document) => (
+                      <TimelineItem
+                        key={document.id}
+                        title={`${document.tipoDocumento} ${document.numeroDocumento}`}
+                        subtitle={`${document.empresa || document.cliente || 'Sin cliente'} / ${document.vendedor || 'Sin vendedor'}`}
+                        badge={document.estado}
+                        color={getStatusColor(document.estado)}
+                        meta={formatDate(document.fecha)}
+                      />
+                    ))}
+                    {dashboardData.latestWorkOrders.slice(0, 3).map((order) => (
+                      <TimelineItem
+                        key={order.id}
+                        title={order.title}
+                        subtitle={`${order.sourceArea || 'Origen'} -> ${order.targetArea || 'Responsable'}`}
+                        badge={order.priority}
+                        color={getPriorityColor(order.priority)}
+                        meta={formatDate(order.dueDate)}
+                      />
+                    ))}
+                  </>
+                )}
               </div>
             </CCardBody>
           </CCard>

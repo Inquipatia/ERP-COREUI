@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   CAlert,
   CBadge,
@@ -30,6 +30,7 @@ import {
 import { mockClients } from '../../data/mockClients'
 import { createLocalId, STORAGE_KEYS, useLocalStorageState } from '../../utils/storage'
 import { exportListToExcel } from '../../utils/exportListToExcel'
+import { createClient, deleteClient, listClients, updateClient } from '../../services/clientsApi'
 
 const emptyClient = {
   contact: '',
@@ -102,16 +103,39 @@ const getCompletionColor = (percent) => {
 const getStatusColor = (status) => (status === 'Activo' ? 'success' : 'secondary')
 
 const Clientes = () => {
-  const [clients, setClients] = useLocalStorageState(
+  const [localClients, setLocalClients] = useLocalStorageState(
     STORAGE_KEYS.clients,
     mockClients.map(normalizeClient),
   )
+  const [apiClients, setApiClients] = useState(null)
+  const clients = apiClients !== null ? apiClients : localClients
   const [visible, setVisible] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [formData, setFormData] = useState(emptyClient)
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadClients = async () => {
+      try {
+        const payload = await listClients()
+        const items = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload) ? payload : []
+        if (isMounted) setApiClients(items.map(normalizeClient))
+      } catch (apiError) {
+        console.warn('Usando fallback local porque la API no respondió', apiError)
+        if (isMounted) setApiClients(null)
+      }
+    }
+
+    loadClients()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const normalizedClients = useMemo(() => clients.map(normalizeClient), [clients])
 
@@ -169,7 +193,12 @@ const Clientes = () => {
     setFormData((current) => ({ ...current, [name]: value }))
   }
 
-  const handleSubmit = (event) => {
+  const syncClientsState = (updater) => {
+    setLocalClients(updater)
+    if (apiClients !== null) setApiClients(updater)
+  }
+
+  const handleSubmit = async (event) => {
     event.preventDefault()
 
     if (!formData.contact.trim() || !formData.company.trim()) {
@@ -182,33 +211,63 @@ const Clientes = () => {
       id: editingId || createLocalId('cli'),
     }
 
-    setClients((currentClients) => {
-      if (editingId) {
-        return currentClients.map((client) => (client.id === editingId ? payload : client))
-      }
+    try {
+      const savedClient = normalizeClient(editingId ? await updateClient(editingId, payload) : await createClient(payload))
 
-      return [...currentClients, payload]
-    })
+      syncClientsState((currentClients) => {
+        if (editingId) {
+          return currentClients.map((client) => (client.id === editingId ? savedClient : client))
+        }
 
-    setMessage(editingId ? 'Cliente actualizado localmente.' : 'Cliente creado localmente.')
+        return [savedClient, ...currentClients]
+      })
+
+      setMessage(editingId ? 'Cliente actualizado en API.' : 'Cliente creado en API.')
+    } catch (apiError) {
+      console.warn('Usando fallback local porque la API no respondió', apiError)
+      setLocalClients((currentClients) => {
+        if (editingId) {
+          return currentClients.map((client) => (client.id === editingId ? payload : client))
+        }
+
+        return [...currentClients, payload]
+      })
+      setMessage(editingId ? 'Cliente actualizado localmente.' : 'Cliente creado localmente.')
+    }
     closeModal()
   }
 
-  const handleDelete = (clientId) => {
-    setClients((currentClients) => currentClients.filter((client) => client.id !== clientId))
-    setMessage('Cliente eliminado localmente.')
+  const handleDelete = async (clientId) => {
+    try {
+      await deleteClient(clientId)
+      syncClientsState((currentClients) => currentClients.filter((client) => client.id !== clientId))
+      setMessage('Cliente eliminado en API.')
+    } catch (apiError) {
+      console.warn('Usando fallback local porque la API no respondió', apiError)
+      setLocalClients((currentClients) => currentClients.filter((client) => client.id !== clientId))
+      setMessage('Cliente eliminado localmente.')
+    }
   }
 
-  const handleToggleStatus = (client) => {
+  const handleToggleStatus = async (client) => {
     const nextStatus = client.status === 'Activo' ? 'Inactivo' : 'Activo'
+    const updatedClient = { ...client, status: nextStatus }
 
-    setClients((currentClients) =>
-      currentClients.map((currentClient) =>
-        currentClient.id === client.id ? { ...currentClient, status: nextStatus } : currentClient,
-      ),
-    )
+    try {
+      const savedClient = normalizeClient(await updateClient(client.id, updatedClient))
+      syncClientsState((currentClients) =>
+        currentClients.map((currentClient) => (currentClient.id === client.id ? savedClient : currentClient)),
+      )
+    } catch (apiError) {
+      console.warn('Usando fallback local porque la API no respondió', apiError)
+      setLocalClients((currentClients) =>
+        currentClients.map((currentClient) =>
+          currentClient.id === client.id ? { ...currentClient, status: nextStatus } : currentClient,
+        ),
+      )
+    }
 
-    setMessage(`Cliente ${nextStatus === 'Activo' ? 'activado' : 'inactivado'} localmente.`)
+    setMessage(`Cliente ${nextStatus === 'Activo' ? 'activado' : 'inactivado'}.`)
   }
 
   const handleExportClientsList = async () => {

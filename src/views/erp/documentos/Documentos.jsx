@@ -31,7 +31,7 @@ import {
 } from '@coreui/react'
 import { CChartBar, CChartDoughnut } from '@coreui/react-chartjs'
 import { useAuth } from '../../../context/AuthContext'
-import { get as apiGet } from '../../../services/apiClient'
+import { getDocumentStats, listDocuments } from '../../../services/documentsApi'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 
 import {
@@ -191,8 +191,8 @@ const Documentos = () => {
 
     const loadDocumentsFromApi = async () => {
       const [documentsResult, statsResult] = await Promise.allSettled([
-        apiGet('/documents'),
-        apiGet('/documents/stats'),
+        listDocuments(),
+        getDocumentStats(),
       ])
 
       if (!isMounted) return
