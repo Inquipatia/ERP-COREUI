@@ -10,291 +10,222 @@ import {
   CFormInput,
   CFormLabel,
   CFormSelect,
-  CFormTextarea,
   CInputGroup,
   CInputGroupText,
   CRow,
+  CSpinner,
 } from '@coreui/react'
 import { useAuth } from '../../../context/AuthContext'
-import { readStorage, STORAGE_KEYS } from '../../../utils/storage'
-import { answerAssistantQuestion } from '../../../utils/assistantEngine'
-
-const WORK_ORDER_STORAGE_KEY = 'rubik.erp.workOrders'
-const TENDER_STORAGE_KEY = 'rubik.erp.tenders'
+import { post as apiPost } from '../../../services/apiClient'
 
 const SCOPE_OPTIONS = [
-  { value: 'all', label: 'Todo lo permitido', permission: 'ai.chat' },
-  { value: 'tenders', label: 'Licitaciones', permission: 'tenders.view' },
-  { value: 'documents', label: 'Documentos', permission: 'documents.view' },
+  { value: 'all', label: 'Todos', permission: 'ai.chat' },
   { value: 'quotes', label: 'Cotizaciones', permission: 'quotes.view' },
-  { value: 'workorders', label: 'Órdenes de trabajo', permission: 'workorders.view' },
+  { value: 'documents', label: 'Documentos', permission: 'documents.view' },
+  { value: 'tenders', label: 'Licitaciones', permission: 'tenders.view' },
+  { value: 'workOrders', label: 'Ordenes de trabajo', permission: 'workorders.view' },
+  { value: 'finance', label: 'Finanzas', permission: 'finance.view' },
   { value: 'clients', label: 'Clientes', permission: 'clients.view' },
-  { value: 'materials', label: 'Materiales', permission: 'materials.view' },
-  { value: 'products', label: 'Productos / Servicios', permission: 'products.view' },
 ]
 
-const FINANCE_WORDS = [
-  'finanza',
-  'finanzas',
-  'margen',
-  'márgen',
-  'utilidad',
-  'ganancia',
-  'costo',
-  'costos',
-  'presupuesto',
-  'valor',
-  'precio',
-  'neto',
-  'iva',
-  'total',
-  'factura',
-  'pago',
+const SUGGESTED_QUESTIONS = [
+  'Que cotizaciones estan pendientes de aprobacion?',
+  'Que licitaciones tienen fechas proximas?',
+  'Que ordenes de trabajo estan atrasadas?',
+  'Que clientes tienen mas cotizaciones?',
+  'Que documentos requieren seguimiento?',
+  'Que informacion falta para postular esta licitacion?',
 ]
 
-const normalizeText = (value = '') =>
-  String(value)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
+const formatCurrency = (value) => {
+  if (value === null || value === undefined || value === '') return ''
 
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('es-CL', {
+  return new Intl.NumberFormat('es-CL', {
     style: 'currency',
     currency: 'CLP',
     maximumFractionDigits: 0,
   }).format(Number(value) || 0)
-
-const safeArray = (value) => (Array.isArray(value) ? value : [])
-
-const stringifySafe = (value) => {
-  if (value === null || value === undefined) return ''
-  if (Array.isArray(value)) return value.join(' | ')
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
 }
 
-const hasFinanceIntent = (question) => {
-  const text = normalizeText(question)
-  return FINANCE_WORDS.some((word) => text.includes(normalizeText(word)))
+const confidenceColor = {
+  alta: 'success',
+  media: 'warning',
+  baja: 'secondary',
 }
 
-const buildSearchText = (record) =>
-  Object.entries(record || {})
-    .filter(([, value]) => typeof value !== 'function')
-    .map(([key, value]) => `${key}: ${stringifySafe(value)}`)
-    .join('\n')
+const getDocumentRoute = (document) => {
+  if (document?.route) return `#${document.route}`
 
-const getScore = (text, question) => {
-  const normalizedText = normalizeText(text)
-  const words = normalizeText(question)
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter((word) => word.length >= 3)
+  const routesByScope = {
+    quotes: '#/erp/cotizaciones',
+    documents: '#/erp/documentos',
+    tenders: '#/erp/licitaciones',
+    workOrders: '#/erp/ordenes-trabajo',
+    finance: '#/erp/administracion/finanzas',
+    clients: '#/erp/clientes',
+    suppliers: '#/erp/administracion/proveedores',
+    materials: '#/erp/materiales',
+    products: '#/erp/productos-servicios',
+    users: '#/erp/usuarios',
+  }
 
-  if (words.length === 0) return 0
-
-  return words.reduce((score, word) => {
-    if (normalizedText.includes(word)) return score + 1
-    return score
-  }, 0)
+  return routesByScope[document?.scope] || ''
 }
 
-const stripFinanceFields = (record) => {
-  const blockedKeys = [
-    'budget',
-    'total',
-    'net',
-    'iva',
-    'amount',
-    'price',
-    'cost',
-    'baseCost',
-    'suggestedPrice',
-    'margin',
-    'marginPercent',
-    'utility',
-    'profit',
-    'paymentTerms',
-  ]
+const SectionList = ({ title, items = [], emptyText }) => (
+  <CCard className="h-100">
+    <CCardHeader>
+      <strong>{title}</strong>
+    </CCardHeader>
+    <CCardBody>
+      {items.length > 0 ? (
+        <ul className="mb-0 ps-3">
+          {items.map((item, index) => (
+            <li key={`${title}-${index}`} className="mb-2">
+              {item}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="text-body-secondary">{emptyText}</div>
+      )}
+    </CCardBody>
+  </CCard>
+)
 
-  return Object.fromEntries(
-    Object.entries(record || {}).filter(([key]) => {
-      const normalizedKey = normalizeText(key)
-      return !blockedKeys.some((blockedKey) => normalizedKey.includes(normalizeText(blockedKey)))
-    }),
+const RelatedDocumentCard = ({ document }) => {
+  const route = getDocumentRoute(document)
+
+  return (
+    <CCol xs={12} md={6} xl={4}>
+      <CCard className="h-100">
+        <CCardBody>
+          <div className="d-flex align-items-start justify-content-between gap-2 mb-2">
+            <div>
+              <div className="fw-semibold">{document.title || 'Documento sin titulo'}</div>
+              <div className="small text-body-secondary">{document.type || 'Documento'}</div>
+            </div>
+            {document.status && <CBadge color="primary">{document.status}</CBadge>}
+          </div>
+
+          <div className="small d-flex flex-column gap-1">
+            {document.client && (
+              <span>
+                <strong>Cliente:</strong> {document.client}
+              </span>
+            )}
+            {document.date && (
+              <span>
+                <strong>Fecha:</strong> {document.date}
+              </span>
+            )}
+            {document.amount ? (
+              <span>
+                <strong>Monto:</strong> {formatCurrency(document.amount)}
+              </span>
+            ) : null}
+          </div>
+
+          {route && (
+            <CButton color="secondary" variant="outline" size="sm" className="mt-3" href={route}>
+              Abrir modulo
+            </CButton>
+          )}
+        </CCardBody>
+      </CCard>
+    </CCol>
   )
 }
 
-const getCollectionData = ({ key, fallback = [], canViewFinance = false }) => {
-  const stored = readStorage(key, fallback)
-  const list = safeArray(stored)
+const AssistantResponse = ({ result }) => {
+  if (!result) return null
 
-  if (canViewFinance) return list
+  return (
+    <div className="mt-3">
+      {result.permissionDenied && (
+        <CAlert color="warning">
+          Esta seccion esta restringida para perfiles autorizados.
+        </CAlert>
+      )}
 
-  return list.map(stripFinanceFields)
-}
+      <CRow className="g-3">
+        <CCol xs={12}>
+          <CCard>
+            <CCardHeader className="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+              <strong>Resumen</strong>
+              <CBadge color={confidenceColor[result.confidence] || 'secondary'}>
+                Confianza {result.confidence || 'baja'}
+              </CBadge>
+            </CCardHeader>
+            <CCardBody>
+              <p className="mb-0" style={{ whiteSpace: 'pre-wrap' }}>
+                {result.answer || result.summary || 'Sin respuesta disponible.'}
+              </p>
+            </CCardBody>
+          </CCard>
+        </CCol>
 
-const getKnowledgeBase = ({ hasPermission, canViewFinance }) => {
-  const collections = []
+        <CCol xs={12} lg={4}>
+          <SectionList
+            title="Hallazgos importantes"
+            items={result.importantFindings || []}
+            emptyText="No se detectaron alertas criticas con los datos disponibles."
+          />
+        </CCol>
+        <CCol xs={12} lg={4}>
+          <SectionList
+            title="Acciones sugeridas"
+            items={result.suggestedActions || []}
+            emptyText="No hay acciones sugeridas por ahora."
+          />
+        </CCol>
+        <CCol xs={12} lg={4}>
+          <SectionList
+            title="Informacion faltante"
+            items={result.missingInfo || []}
+            emptyText="No se detecto informacion faltante relevante."
+          />
+        </CCol>
 
-  if (hasPermission('tenders.view')) {
-    collections.push({
-      scope: 'tenders',
-      label: 'Licitaciones',
-      items: getCollectionData({
-        key: TENDER_STORAGE_KEY,
-        canViewFinance,
-      }),
-    })
-  }
-
-  if (hasPermission('documents.view')) {
-    collections.push({
-      scope: 'documents',
-      label: 'Documentos',
-      items: getCollectionData({
-        key: STORAGE_KEYS.documents,
-        canViewFinance,
-      }),
-    })
-  }
-
-  if (hasPermission('quotes.view')) {
-    collections.push({
-      scope: 'quotes',
-      label: 'Cotizaciones',
-      items: getCollectionData({
-        key: STORAGE_KEYS.quotes,
-        canViewFinance,
-      }),
-    })
-  }
-
-  if (hasPermission('workorders.view')) {
-    collections.push({
-      scope: 'workorders',
-      label: 'Órdenes de trabajo',
-      items: getCollectionData({
-        key: WORK_ORDER_STORAGE_KEY,
-        canViewFinance,
-      }),
-    })
-  }
-
-  if (hasPermission('clients.view')) {
-    collections.push({
-      scope: 'clients',
-      label: 'Clientes',
-      items: getCollectionData({
-        key: STORAGE_KEYS.clients,
-        canViewFinance,
-      }),
-    })
-  }
-
-  if (hasPermission('materials.view')) {
-    collections.push({
-      scope: 'materials',
-      label: 'Materiales',
-      items: getCollectionData({
-        key: STORAGE_KEYS.materials,
-        canViewFinance,
-      }),
-    })
-  }
-
-  if (hasPermission('products.view')) {
-    collections.push({
-      scope: 'products',
-      label: 'Productos / Servicios',
-      items: getCollectionData({
-        key: STORAGE_KEYS.products,
-        canViewFinance,
-      }),
-    })
-  }
-
-  return collections
-}
-
-const getRecordTitle = (record, fallback = 'Registro') =>
-  record.title ||
-  record.name ||
-  record.quoteNumber ||
-  record.tenderId ||
-  record.client ||
-  record.company ||
-  record.email ||
-  fallback
-
-const buildAnswer = ({ question, matches, canViewFinance }) => {
-  if (matches.length === 0) {
-    return {
-      answer:
-        'No encontré información suficiente en los módulos permitidos para responder esa consulta. Prueba con una pregunta más específica o revisa si el documento fue guardado en el ERP.',
-      sources: [],
-    }
-  }
-
-  const topMatches = matches.slice(0, 5)
-
-  const lines = topMatches.map((match, index) => {
-    const record = match.record
-    const title = getRecordTitle(record, `Resultado ${index + 1}`)
-
-    const usefulFields = [
-      record.tenderId ? `ID licitación: ${record.tenderId}` : '',
-      record.buyer ? `Comprador: ${record.buyer}` : '',
-      record.status ? `Estado: ${record.status}` : '',
-      record.riskLevel ? `Riesgo: ${record.riskLevel}` : '',
-      record.closingDate ? `Cierre: ${record.closingDate}` : '',
-      record.client ? `Cliente: ${record.client}` : '',
-      record.company ? `Empresa: ${record.company}` : '',
-      record.assigneeName ? `Asignado a: ${record.assigneeName}` : '',
-      record.dueDate ? `Entrega: ${record.dueDate}` : '',
-      canViewFinance && record.budget ? `Presupuesto: ${formatCurrency(record.budget)}` : '',
-      canViewFinance && record.total ? `Total: ${formatCurrency(record.total)}` : '',
-      record.summary ? `Resumen: ${String(record.summary).slice(0, 500)}` : '',
-      record.description ? `Descripción: ${String(record.description).slice(0, 500)}` : '',
-      safeArray(record.risks).length ? `Riesgos: ${record.risks.slice(0, 4).join('; ')}` : '',
-      safeArray(record.requiredDocuments).length
-        ? `Documentos: ${record.requiredDocuments.slice(0, 4).join('; ')}`
-        : '',
-      safeArray(record.technicalItems).length
-        ? `Ítems: ${record.technicalItems.slice(0, 4).join('; ')}`
-        : '',
-    ].filter(Boolean)
-
-    return `${index + 1}. ${title}\n${usefulFields.join('\n')}`
-  })
-
-  return {
-    answer: `Encontré información relacionada en los módulos permitidos:\n\n${lines.join(
-      '\n\n',
-    )}\n\nRespuesta generada en modo local. La IA externa todavía no está conectada, por eso esta respuesta se basa en búsqueda inteligente sobre los datos guardados.`,
-    sources: topMatches.map((match) => ({
-      module: match.label,
-      title: getRecordTitle(match.record),
-      score: match.score,
-    })),
-  }
+        <CCol xs={12}>
+          <CCard>
+            <CCardHeader>
+              <strong>Documentos relacionados</strong>
+            </CCardHeader>
+            <CCardBody>
+              {result.relatedDocuments?.length > 0 ? (
+                <CRow className="g-3">
+                  {result.relatedDocuments.map((document) => (
+                    <RelatedDocumentCard
+                      document={document}
+                      key={`${document.scope}-${document.id}-${document.score}`}
+                    />
+                  ))}
+                </CRow>
+              ) : (
+                <CAlert color="info" className="mb-0">
+                  No se encontraron documentos relacionados en los modulos permitidos.
+                </CAlert>
+              )}
+            </CCardBody>
+          </CCard>
+        </CCol>
+      </CRow>
+    </div>
+  )
 }
 
 const AsistenteIA = () => {
   const { currentUser, hasPermission } = useAuth()
   const canUseAssistant = hasPermission('ai.chat')
   const canViewFinance = hasPermission('finance.view') || hasPermission('ai.finance')
-  const [question, setQuestion] = useState('')
+  const [message, setMessage] = useState('')
   const [scope, setScope] = useState('all')
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content:
-        'Hola, soy el asistente interno del ERP Rubik. Puedo ayudarte a buscar información en licitaciones, documentos, cotizaciones, órdenes de trabajo y otros módulos, respetando los permisos de tu perfil.',
-      sources: [],
-    },
-  ])
+  const [history, setHistory] = useState([])
+  const [latestResult, setLatestResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [emptyMessage, setEmptyMessage] = useState('')
 
   const allowedScopes = useMemo(
     () =>
@@ -305,48 +236,50 @@ const AsistenteIA = () => {
     [canUseAssistant, hasPermission],
   )
 
-  const knowledgeBase = useMemo(
-    () => getKnowledgeBase({ hasPermission, canViewFinance }),
-    [hasPermission, canViewFinance],
-  )
-
-  const handleAsk = () => {
-    const trimmedQuestion = question.trim()
-
-    if (!trimmedQuestion) return
+  const submitQuestion = async (nextMessage = message) => {
+    const trimmedMessage = nextMessage.trim()
+    if (!trimmedMessage || loading) return
 
     if (!canUseAssistant) {
-      setMessages((current) => [
-        ...current,
-        { role: 'user', content: trimmedQuestion, sources: [] },
-        {
-          role: 'assistant',
-          content: 'No tienes permiso para usar el asistente IA.',
-          sources: [],
-        },
-      ])
-      setQuestion('')
+      setError('Tu perfil no tiene acceso al asistente IA.')
       return
     }
 
-    const result = answerAssistantQuestion({
-      question: trimmedQuestion,
-      hasPermission,
-      canViewFinance,
-    })
+    setLoading(true)
+    setError('')
+    setEmptyMessage('')
 
-    setMessages((current) => [
-      ...current,
-      { role: 'user', content: trimmedQuestion, sources: [] },
-      { role: 'assistant', content: result.answer, sources: result.sources },
-    ])
+    try {
+      const result = await apiPost('/assistant/query', {
+        message: trimmedMessage,
+        scope,
+        limit: 10,
+      })
 
-    setQuestion('')
+      setLatestResult(result)
+      setHistory((current) => [
+        { question: trimmedMessage, result, createdAt: new Date().toISOString() },
+        ...current,
+      ].slice(0, 6))
+      setMessage('')
+
+      if (!result?.relatedDocuments?.length) {
+        setEmptyMessage('El asistente no encontro documentos relacionados para esa pregunta.')
+      }
+    } catch (requestError) {
+      console.warn('No se pudo consultar el asistente desde la API.', requestError)
+      setError(
+        requestError.message ||
+          'No se pudo conectar con la API del asistente. Intenta nuevamente en unos segundos.',
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      handleAsk()
+      submitQuestion()
     }
   }
 
@@ -357,14 +290,14 @@ const AsistenteIA = () => {
           <CCardHeader className="d-flex align-items-center justify-content-between gap-3 flex-wrap">
             <div>
               <strong>Asistente IA Rubik</strong>{' '}
-              <small>Consulta inteligente con permisos por perfil</small>
+              <small>consulta documentos reales del ERP segun permisos</small>
             </div>
             <div className="d-flex align-items-center gap-2 flex-wrap">
               <CBadge color={canUseAssistant ? 'success' : 'danger'}>
-                {canUseAssistant ? 'Activo' : 'Sin permiso'}
+                {canUseAssistant ? 'Activo' : 'Sin acceso'}
               </CBadge>
               <CBadge color={canViewFinance ? 'primary' : 'warning'}>
-                {canViewFinance ? 'Finanzas habilitadas' : 'Finanzas ocultas'}
+                {canViewFinance ? 'Finanzas disponibles' : 'Finanzas restringidas'}
               </CBadge>
             </div>
           </CCardHeader>
@@ -372,15 +305,13 @@ const AsistenteIA = () => {
           <CCardBody>
             {!canUseAssistant && (
               <CAlert color="danger">
-                Tu usuario no tiene permiso <strong>ai.chat</strong>. Solicita acceso a Gerencia o
-                Administración.
+                Esta seccion esta restringida para perfiles autorizados.
               </CAlert>
             )}
 
             <CAlert color="info">
-              Este asistente está en modo local seguro. Busca dentro de los datos guardados del ERP
-              y respeta los permisos del usuario conectado. La conexión con IA externa se puede
-              agregar después desde backend.
+              El asistente consulta la API del ERP y no usa mocks como fuente principal. Si una
+              respuesta queda incompleta, mostrara que informacion falta en vez de inventar datos.
             </CAlert>
 
             <CRow className="g-3 mb-4">
@@ -391,24 +322,20 @@ const AsistenteIA = () => {
                   <div className="small text-body-secondary">{currentUser?.email || '-'}</div>
                   <div className="d-flex align-items-center gap-2 flex-wrap mt-2">
                     <CBadge color="primary">{currentUser?.role || 'Sin rol'}</CBadge>
-                    <CBadge color="secondary">{currentUser?.area || 'Sin área'}</CBadge>
+                    <CBadge color="secondary">{currentUser?.area || 'Sin area'}</CBadge>
                   </div>
                 </div>
               </CCol>
 
               <CCol md={8}>
-                <CFormLabel>Módulos disponibles para el asistente</CFormLabel>
+                <CFormLabel>Alcance permitido</CFormLabel>
                 <div className="border rounded p-3 h-100">
                   <div className="d-flex align-items-center gap-2 flex-wrap">
-                    {knowledgeBase.length === 0 ? (
-                      <CBadge color="secondary">Sin módulos disponibles</CBadge>
-                    ) : (
-                      knowledgeBase.map((collection) => (
-                        <CBadge color="light" textColor="dark" key={collection.scope}>
-                          {collection.label}: {collection.items.length}
-                        </CBadge>
-                      ))
-                    )}
+                    {allowedScopes.map((option) => (
+                      <CBadge color="light" textColor="dark" key={option.value}>
+                        {option.label}
+                      </CBadge>
+                    ))}
                   </div>
                 </div>
               </CCol>
@@ -416,111 +343,114 @@ const AsistenteIA = () => {
 
             <CCard className="mb-4">
               <CCardHeader>
-                <strong>Chat</strong>
+                <strong>Consulta</strong>
               </CCardHeader>
-              <CCardBody style={{ maxHeight: '460px', overflowY: 'auto' }}>
-                <div className="d-flex flex-column gap-3">
-                  {messages.map((message, index) => (
-                    <div
-                      key={`${message.role}-${index}`}
-                      className={`p-3 rounded ${message.role === 'user'
-                          ? 'bg-primary text-white align-self-end'
-                          : 'bg-body-tertiary align-self-start'
-                        }`}
-                      style={{ maxWidth: '88%', whiteSpace: 'pre-wrap' }}
+              <CCardBody>
+                <CRow className="g-3">
+                  <CCol md={3}>
+                    <CFormLabel>Alcance</CFormLabel>
+                    <CFormSelect
+                      value={scope}
+                      onChange={(event) => setScope(event.target.value)}
+                      disabled={!canUseAssistant || loading}
                     >
-                      <div className="small fw-semibold mb-1">
-                        {message.role === 'user' ? 'Tú' : 'Asistente Rubik'}
-                      </div>
-                      <div>{message.content}</div>
+                      {allowedScopes.map((option) => (
+                        <option value={option.value} key={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </CFormSelect>
+                  </CCol>
 
-                      {message.sources?.length > 0 && (
-                        <div className="mt-3">
-                          <div className="small fw-semibold mb-1">Fuentes usadas</div>
-                          <div className="d-flex align-items-center gap-2 flex-wrap">
-                            {message.sources.map((source) => (
-                              <CBadge
-                                color="light"
-                                textColor="dark"
-                                key={`${source.module}-${source.title}-${source.score}`}
-                              >
-                                {source.module}: {source.title}
-                              </CBadge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                  <CCol md={9}>
+                    <CFormLabel>Pregunta</CFormLabel>
+                    <CInputGroup>
+                      <CInputGroupText>Consultar</CInputGroupText>
+                      <CFormInput
+                        value={message}
+                        onChange={(event) => setMessage(event.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Ej: Que cotizaciones estan pendientes de aprobacion?"
+                        disabled={!canUseAssistant || loading}
+                      />
+                      <CButton
+                        color="primary"
+                        type="button"
+                        onClick={() => submitQuestion()}
+                        disabled={!canUseAssistant || loading || !message.trim()}
+                      >
+                        {loading ? (
+                          <>
+                            <CSpinner size="sm" className="me-2" />
+                            Consultando
+                          </>
+                        ) : (
+                          'Preguntar'
+                        )}
+                      </CButton>
+                    </CInputGroup>
+                    <div className="small text-body-secondary mt-2">
+                      Tambien puedes usar Ctrl + Enter para enviar.
                     </div>
-                  ))}
-                </div>
+                  </CCol>
+
+                  <CCol xs={12}>
+                    <CFormLabel>Preguntas sugeridas</CFormLabel>
+                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                      {SUGGESTED_QUESTIONS.map((question) => (
+                        <CButton
+                          color="secondary"
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          key={question}
+                          onClick={() => {
+                            setMessage(question)
+                            submitQuestion(question)
+                          }}
+                          disabled={!canUseAssistant || loading}
+                        >
+                          {question}
+                        </CButton>
+                      ))}
+                    </div>
+                  </CCol>
+                </CRow>
               </CCardBody>
             </CCard>
 
-            <CRow className="g-3">
-              <CCol md={3}>
-                <CFormLabel>Alcance</CFormLabel>
-                <CFormSelect value={scope} onChange={(event) => setScope(event.target.value)}>
-                  {allowedScopes.map((option) => (
-                    <option value={option.value} key={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </CFormSelect>
-              </CCol>
+            {error && <CAlert color="danger">{error}</CAlert>}
+            {emptyMessage && !error && <CAlert color="warning">{emptyMessage}</CAlert>}
+            {loading && (
+              <CAlert color="info" className="d-flex align-items-center gap-2">
+                <CSpinner size="sm" />
+                Buscando en documentos, cotizaciones, licitaciones y modulos permitidos...
+              </CAlert>
+            )}
 
-              <CCol md={9}>
-                <CFormLabel>Pregunta</CFormLabel>
-                <CInputGroup>
-                  <CInputGroupText>Consultar</CInputGroupText>
-                  <CFormInput
-                    value={question}
-                    onChange={(event) => setQuestion(event.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Ej: ¿Qué licitaciones cierran pronto? ¿Qué órdenes tengo asignadas?"
-                    disabled={!canUseAssistant}
-                  />
-                  <CButton color="primary" type="button" onClick={handleAsk} disabled={!canUseAssistant}>
-                    Preguntar
-                  </CButton>
-                </CInputGroup>
-                <div className="small text-body-secondary mt-2">
-                  Tip: también puedes usar Ctrl + Enter para enviar.
-                </div>
-              </CCol>
+            <AssistantResponse result={latestResult} />
 
-              <CCol xs={12}>
-                <CFormLabel>Preguntas rápidas</CFormLabel>
-                <div className="d-flex align-items-center gap-2 flex-wrap">
-                  {[
-                    '¿Qué licitaciones cierran pronto?',
-                    '¿Qué órdenes de trabajo están pendientes?',
-                    '¿Qué documentos obligatorios aparecen en las licitaciones?',
-                    '¿Qué riesgos tienen las licitaciones?',
-                    '¿Qué cotizaciones están pendientes?',
-                  ].map((quickQuestion) => (
-                    <CButton
-                      color="secondary"
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      key={quickQuestion}
-                      onClick={() => setQuestion(quickQuestion)}
-                      disabled={!canUseAssistant}
-                    >
-                      {quickQuestion}
-                    </CButton>
-                  ))}
-                </div>
-              </CCol>
-
-              <CCol xs={12}>
-                <CFormTextarea
-                  readOnly
-                  rows={4}
-                  value="Regla de seguridad: el asistente no entrega información financiera si el usuario no tiene finance.view o ai.finance. Tampoco consulta módulos donde el usuario no tiene permiso de lectura."
-                />
-              </CCol>
-            </CRow>
+            {history.length > 0 && (
+              <CCard className="mt-4">
+                <CCardHeader>
+                  <strong>Consultas recientes</strong>
+                </CCardHeader>
+                <CCardBody>
+                  <div className="d-flex flex-column gap-2">
+                    {history.map((entry) => (
+                      <button
+                        type="button"
+                        className="btn btn-link text-start p-0"
+                        key={`${entry.createdAt}-${entry.question}`}
+                        onClick={() => setLatestResult(entry.result)}
+                      >
+                        {entry.question}
+                      </button>
+                    ))}
+                  </div>
+                </CCardBody>
+              </CCard>
+            )}
           </CCardBody>
         </CCard>
       </CCol>
