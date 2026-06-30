@@ -1,6 +1,5 @@
 const express = require('express')
 const { generateCotizacionPdfWithPdfkit } = require('../utils/generateCotizacionPdfWithPdfkit')
-const { renderCotizacionHTML } = require('../utils/renderCotizacionHTML')
 
 const router = express.Router()
 
@@ -22,16 +21,6 @@ router.get('/export/pdf-health', (_request, response) => {
     chromeRequired: false,
     libreOfficeRequired: false,
   })
-})
-
-router.post('/export/pdf-preview-html', (request, response) => {
-  if (!hasBody(request.body)) {
-    response.status(400).json({ error: 'No hay datos de cotización para previsualizar.' })
-    return
-  }
-
-  response.setHeader('Content-Type', 'text/html; charset=utf-8')
-  response.send(renderCotizacionHTML(request.body))
 })
 
 router.post('/export/pdf', async (request, response) => {
