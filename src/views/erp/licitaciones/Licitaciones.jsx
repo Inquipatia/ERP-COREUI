@@ -30,6 +30,7 @@ import {
   CTableRow,
 } from '@coreui/react'
 import { useAuth } from '../../../context/AuthContext'
+import { getApiBaseUrl } from '../../../services/apiClient'
 import { createTender, deleteTender, listTenders, updateTender } from '../../../services/tendersApi'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 import { readStorage, writeStorage } from '../../../utils/storage'
@@ -43,8 +44,7 @@ import {
   TENDER_STORAGE_KEY,
 } from '../../../utils/tenderStorage'
 
-const API_BASE_URL =
-  import.meta.env.VITE_RUBIK_API_URL || 'https://api.rubikcreaciones.com/api'
+const API_BASE_URL = getApiBaseUrl()
 
 const TENDER_ANALYZER_API_URL =
   import.meta.env.VITE_RUBIK_TENDER_ANALYZER_URL ||

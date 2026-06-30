@@ -1,6 +1,6 @@
-const API_BASE_URL =
-  import.meta.env.VITE_RUBIK_API_URL ||
-  (import.meta.env.PROD ? 'https://api.rubikcreaciones.com/api' : 'http://localhost:4300/api')
+import { getApiBaseUrl } from './apiClient'
+
+const API_BASE_URL = getApiBaseUrl()
 
 const PDF_ENDPOINT = `${API_BASE_URL.replace(/\/$/, '')}/export/pdf`
 const PDF_REQUEST_TIMEOUT_MS = 60000

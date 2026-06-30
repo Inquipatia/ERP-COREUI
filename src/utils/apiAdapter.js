@@ -1,8 +1,9 @@
 import { readStorage, writeStorage } from './storage'
+import { getApiBaseUrl } from '../services/apiClient'
 
-export const API_BASE_URL =
-  import.meta.env.VITE_RUBIK_API_URL ||
-  (import.meta.env.PROD ? '/api' : 'http://localhost:4300/api')
+export const API_BASE_URL = getApiBaseUrl()
+
+const PRISMA_ERROR_PATTERN = /(prisma|database_url|mysql|p1000|p1001|p1002|p1003|p1010|can't reach database|authentication failed)/i
 
 const getCurrentSessionUser = () => readStorage('rubik.erp.currentUser', null)
 
@@ -36,7 +37,12 @@ export const apiRequest = async (endpoint, options = {}) => {
 
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({}))
-    throw new Error(errorPayload.error || `Error API ${response.status}`)
+    const errorMessage = errorPayload.error || errorPayload.message || `Error API ${response.status}`
+    throw new Error(
+      PRISMA_ERROR_PATTERN.test(errorMessage)
+        ? 'La API no pudo conectarse correctamente a Prisma/MySQL. Revisa DATABASE_URL o vuelve temporalmente a RUBIK_DATA_ADAPTER=json.'
+        : errorMessage,
+    )
   }
 
   if (response.status === 204) return null

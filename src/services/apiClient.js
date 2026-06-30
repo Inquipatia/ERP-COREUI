@@ -1,6 +1,7 @@
 const API_BASE_URL =
   import.meta.env.VITE_RUBIK_API_URL ||
   (import.meta.env.PROD ? '/api' : 'http://localhost:4300/api')
+const PRISMA_ERROR_PATTERN = /(prisma|database_url|mysql|p1000|p1001|p1002|p1003|p1010|can't reach database|authentication failed)/i
 
 const API_SESSION_KEY = 'rubik.erp.apiSession'
 const CURRENT_USER_KEY = 'rubik.erp.currentUser'
@@ -123,6 +124,20 @@ export const loginToApi = async (currentUser = getCurrentWebUser()) => {
   return payload
 }
 
+const getApiErrorMessage = (payload, response) => {
+  const rawMessage =
+    payload?.error ||
+    payload?.message ||
+    (typeof payload === 'string' ? payload : '') ||
+    `Error API ${response.status}`
+
+  if (PRISMA_ERROR_PATTERN.test(rawMessage)) {
+    return 'La API no pudo conectarse correctamente a Prisma/MySQL. Revisa DATABASE_URL o vuelve temporalmente a RUBIK_DATA_ADAPTER=json.'
+  }
+
+  return rawMessage
+}
+
 const ensureApiSession = async () => {
   const storedSession = getStoredApiSession()
   const currentUser = getCurrentWebUser()
@@ -168,7 +183,7 @@ export async function apiRequest(endpoint, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(payload?.error || payload || `Error API ${response.status}`)
+    throw new Error(getApiErrorMessage(payload, response))
   }
 
   return payload
