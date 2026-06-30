@@ -965,7 +965,7 @@ const NuevaCotizacion = () => {
           <CCol lg={4}>
             <CCard className="mb-4">
               <CCardHeader>
-                <strong>Resumen</strong>
+                <strong>Resumen rápido</strong>
               </CCardHeader>
               <CCardBody>
                 <div className="d-flex justify-content-between mb-2">
@@ -984,45 +984,6 @@ const NuevaCotizacion = () => {
                   <span>Total actual</span>
                   <strong>{formatCurrency(currentAmounts.total)}</strong>
                 </div>
-                {validationError && <CAlert color="danger">{validationError}</CAlert>}
-                {exportWarning && <CAlert color="warning">{exportWarning}</CAlert>}
-                {saveMessage && (
-                  <CAlert color="success" className="py-2">
-                    {saveMessage}
-                  </CAlert>
-                )}
-                <CButton color="primary" className="w-100 mb-2" type="submit">
-                  Generar cotización
-                </CButton>
-                <CButton
-                  color="secondary"
-                  className="w-100 mb-2"
-                  type="button"
-                  variant="outline"
-                  onClick={handleSaveQuote}
-                >
-                  Guardar cotización
-                </CButton>
-                <CButton
-                  color="success"
-                  className="w-100 mb-2"
-                  type="button"
-                  variant="outline"
-                  disabled={isExportingExcel}
-                  onClick={handleExportExcel}
-                >
-                  {isExportingExcel ? 'Exportando...' : 'Exportar Excel'}
-                </CButton>
-                <CButton
-                  color="danger"
-                  className="w-100"
-                  type="button"
-                  variant="outline"
-                  disabled={isExportingPdf}
-                  onClick={exportarPDF}
-                >
-                  {isExportingPdf ? 'Exportando...' : 'Descargar PDF'}
-                </CButton>
               </CCardBody>
             </CCard>
           </CCol>
@@ -1170,6 +1131,102 @@ const NuevaCotizacion = () => {
                     </CTableRow>
                   </CTableFoot>
                 </CTable>
+              </CCardBody>
+            </CCard>
+          </CCol>
+
+          <CCol xs={12}>
+            <CCard className="mb-4 border-primary">
+              <CCardHeader className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+                <strong>Resumen y acciones</strong>
+                <CBadge color="info" className="align-self-start align-self-md-center px-3 py-2">
+                  IVA configurado: {ivaRate}%
+                </CBadge>
+              </CCardHeader>
+              <CCardBody>
+                {validationError && <CAlert color="danger">{validationError}</CAlert>}
+                {exportWarning && <CAlert color="warning">{exportWarning}</CAlert>}
+                {saveMessage && (
+                  <CAlert color="success" className="py-2">
+                    {saveMessage}
+                  </CAlert>
+                )}
+
+                <CRow className="g-3">
+                  <CCol xs={12} sm={6} xl={3}>
+                    <div className="h-100 rounded border p-3">
+                      <div className="text-body-secondary small">Ítems ingresados</div>
+                      <div className="fs-4 fw-semibold">{items.length}</div>
+                    </div>
+                  </CCol>
+                  <CCol xs={12} sm={6} xl={3}>
+                    <div className="h-100 rounded border p-3">
+                      <div className="text-body-secondary small">Neto actual</div>
+                      <div className="fs-4 fw-semibold">
+                        {formatCurrency(currentAmounts.net)}
+                      </div>
+                    </div>
+                  </CCol>
+                  <CCol xs={12} sm={6} xl={3}>
+                    <div className="h-100 rounded border p-3">
+                      <div className="text-body-secondary small">IVA {ivaRate}%</div>
+                      <div className="fs-4 fw-semibold">
+                        {formatCurrency(currentAmounts.iva)}
+                      </div>
+                    </div>
+                  </CCol>
+                  <CCol xs={12} sm={6} xl={3}>
+                    <div className="h-100 rounded border p-3">
+                      <div className="text-body-secondary small">Total actual</div>
+                      <div className="fs-4 fw-semibold text-primary">
+                        {formatCurrency(currentAmounts.total)}
+                      </div>
+                    </div>
+                  </CCol>
+                </CRow>
+
+                <CRow className="g-2 mt-4">
+                  <CCol xs={12} md={6} xl={3}>
+                    <CButton color="primary" className="w-100" type="submit">
+                      Generar cotización
+                    </CButton>
+                  </CCol>
+                  <CCol xs={12} md={6} xl={3}>
+                    <CButton
+                      color="secondary"
+                      className="w-100"
+                      type="button"
+                      variant="outline"
+                      onClick={handleSaveQuote}
+                    >
+                      Guardar cotización
+                    </CButton>
+                  </CCol>
+                  <CCol xs={12} md={6} xl={3}>
+                    <CButton
+                      color="success"
+                      className="w-100"
+                      type="button"
+                      variant="outline"
+                      disabled={isExportingExcel}
+                      onClick={handleExportExcel}
+                    >
+                      {isExportingExcel ? 'Exportando...' : 'Exportar Excel'}
+                    </CButton>
+                  </CCol>
+                  <CCol xs={12} md={6} xl={3}>
+                    <CButton
+                      color="danger"
+                      className="w-100"
+                      type="button"
+                      variant="outline"
+                      disabled={isExportingPdf}
+                      onClick={exportarPDF}
+                    >
+                      {isExportingPdf ? 'Exportando...' : 'Descargar PDF'}
+                    </CButton>
+                  </CCol>
+                </CRow>
               </CCardBody>
             </CCard>
           </CCol>
