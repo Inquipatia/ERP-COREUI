@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   CAlert,
   CBadge,
@@ -30,6 +30,12 @@ import {
 } from '@coreui/react'
 
 import { useAuth } from '../../../context/AuthContext'
+import {
+  getFinanceSummary,
+  listFinanceMovements,
+  listPayments,
+  runSandboxPaymentDemo,
+} from '../../../services/financeApi'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 import {
   calculateFinanceMovement,
@@ -64,11 +70,36 @@ const getStatusColor = (status) => {
 
 const getTypeColor = (type) => (type === 'Ingreso' ? 'success' : 'danger')
 
+const getPaymentStatusColor = (status) => {
+  if (status === 'approved' || status === 'reconciled') return 'success'
+  if (status === 'rejected' || status === 'failed' || status === 'canceled') return 'danger'
+  return 'warning'
+}
+
+const extractItems = (payload) => {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.items)) return payload.items
+  return []
+}
+
+const getFinanceApiErrorMessage = (error) => {
+  const message = error?.message || 'No se pudo conectar con la API financiera.'
+  if (message.toLowerCase().includes('permiso')) {
+    return 'No tienes permisos financieros para ejecutar esta demo.'
+  }
+  return message
+}
+
 const Finanzas = () => {
   const { currentUser, hasPermission } = useAuth()
   const canView = hasPermission('finance.view') || hasPermission('admin.all')
   const canManage = hasPermission('finance.manage') || hasPermission('admin.all')
   const canExport = hasPermission('finance.export') || hasPermission('admin.all')
+  const canCreatePayments =
+    hasPermission('payments.create') ||
+    hasPermission('finance.payments') ||
+    hasPermission('finance.manage') ||
+    hasPermission('admin.all')
   const [movements, setMovements] = useFinanceMovements()
   const [filters, setFilters] = useState(initialFilters)
   const [visible, setVisible] = useState(false)
@@ -76,6 +107,13 @@ const Finanzas = () => {
   const [formData, setFormData] = useState(emptyFinanceMovement)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [demoSummary, setDemoSummary] = useState(null)
+  const [apiPayments, setApiPayments] = useState([])
+  const [apiMovements, setApiMovements] = useState([])
+  const [demoResult, setDemoResult] = useState(null)
+  const [demoError, setDemoError] = useState('')
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [demoRefreshing, setDemoRefreshing] = useState(false)
 
   const filteredMovements = useMemo(
     () => movements.filter((movement) => financeMovementMatchesFilters(movement, filters)),
@@ -85,6 +123,37 @@ const Finanzas = () => {
   const summary = useMemo(() => summarizeMovements(filteredMovements), [filteredMovements])
   const formCalculation = useMemo(() => calculateFinanceMovement(formData), [formData])
   const formIsQuoteReceivable = Boolean(formData.quoteSourceLocked || formData.sourceType === 'quote')
+  const lastApiPayments = useMemo(() => apiPayments.slice(0, 5), [apiPayments])
+  const lastApiMovements = useMemo(() => apiMovements.slice(0, 5), [apiMovements])
+
+  const refreshFinanceDemoData = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!canView) return
+
+      setDemoRefreshing(!silent)
+      if (!silent) setDemoError('')
+
+      try {
+        const [summaryPayload, movementsPayload, paymentsPayload] = await Promise.all([
+          getFinanceSummary(),
+          listFinanceMovements(),
+          listPayments(),
+        ])
+        setDemoSummary(summaryPayload)
+        setApiMovements(extractItems(movementsPayload))
+        setApiPayments(extractItems(paymentsPayload))
+      } catch (apiError) {
+        if (!silent) setDemoError(getFinanceApiErrorMessage(apiError))
+      } finally {
+        setDemoRefreshing(false)
+      }
+    },
+    [canView],
+  )
+
+  useEffect(() => {
+    void refreshFinanceDemoData()
+  }, [refreshFinanceDemoData])
 
   const handleFilterChange = (event) => {
     const { name, value } = event.target
@@ -270,9 +339,30 @@ const Finanzas = () => {
     setMessage('Listado financiero exportado correctamente.')
   }
 
+  const handleSandboxDemo = async () => {
+    setDemoLoading(true)
+    setDemoError('')
+    setDemoResult(null)
+
+    try {
+      const result = await runSandboxPaymentDemo()
+      setDemoResult(result)
+      setMessage(result?.message || 'Pago sandbox simulado correctamente.')
+      await refreshFinanceDemoData({ silent: true })
+    } catch (apiError) {
+      setDemoError(getFinanceApiErrorMessage(apiError))
+    } finally {
+      setDemoLoading(false)
+    }
+  }
+
   if (!canView) {
     return <CAlert color="danger">Tu perfil no tiene permiso para ver Finanzas.</CAlert>
   }
+
+  const apiSummary = demoSummary || {}
+  const demoPayment = demoResult?.payment || {}
+  const demoMovement = demoResult?.movement || {}
 
   return (
     <CRow className="g-4">
@@ -327,6 +417,196 @@ const Finanzas = () => {
             <div className="text-body-secondary small">Flujo estimado</div>
             <div className="fs-4 fw-semibold">{formatCurrency(summary.projectedFlow)}</div>
             <CProgress thin color={summary.projectedFlow >= 0 ? 'success' : 'danger'} value={100} />
+          </CCardBody>
+        </CCard>
+      </CCol>
+
+      <CCol xs={12}>
+        <CCard>
+          <CCardHeader className="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+            <div>
+              <strong>Testrun Pago Sandbox</strong>{' '}
+              <small>modo actual: {apiSummary.paymentsMode || 'sandbox'}</small>
+            </div>
+            <div className="d-flex gap-2 flex-wrap">
+              <CBadge color="info">provider {apiSummary.paymentProvider || 'sandbox'}</CBadge>
+              <CButton
+                color="primary"
+                onClick={handleSandboxDemo}
+                disabled={demoLoading || !canCreatePayments}
+              >
+                {demoLoading ? 'Simulando...' : 'Simular pago aprobado'}
+              </CButton>
+            </div>
+          </CCardHeader>
+          <CCardBody>
+            <CAlert color="warning">
+              Modo sandbox: este pago es simulado y no mueve dinero real.
+            </CAlert>
+            {demoError && (
+              <CAlert color="danger" dismissible onClose={() => setDemoError('')}>
+                {demoError}
+              </CAlert>
+            )}
+            {!canCreatePayments && (
+              <CAlert color="danger">
+                No tienes permisos financieros para ejecutar esta demo.
+              </CAlert>
+            )}
+            {demoResult && (
+              <CAlert color="success">
+                <div className="fw-semibold">{demoResult.message}</div>
+                <CRow className="g-2 mt-2">
+                  <CCol md={2} sm={6}>
+                    <div className="small text-body-secondary">Movement ID</div>
+                    <div className="fw-semibold text-break">{demoMovement.id || '-'}</div>
+                  </CCol>
+                  <CCol md={2} sm={6}>
+                    <div className="small text-body-secondary">Payment ID</div>
+                    <div className="fw-semibold text-break">{demoPayment.id || '-'}</div>
+                  </CCol>
+                  <CCol md={2} sm={6}>
+                    <div className="small text-body-secondary">Pago</div>
+                    <CBadge color={getPaymentStatusColor(demoPayment.status)}>{demoPayment.status || '-'}</CBadge>
+                  </CCol>
+                  <CCol md={2} sm={6}>
+                    <div className="small text-body-secondary">Movimiento</div>
+                    <CBadge color={getStatusColor(demoMovement.status)}>{demoMovement.status || '-'}</CBadge>
+                  </CCol>
+                  <CCol md={2} sm={6}>
+                    <div className="small text-body-secondary">Monto</div>
+                    <div className="fw-semibold">{formatCurrency(demoPayment.amount || demoMovement.totalAmount || 0)}</div>
+                  </CCol>
+                  <CCol md={2} sm={6}>
+                    <div className="small text-body-secondary">Fecha</div>
+                    <div className="fw-semibold">{formatDate(demoPayment.paymentDate || demoPayment.transactionDate)}</div>
+                  </CCol>
+                </CRow>
+              </CAlert>
+            )}
+
+            <CRow className="g-3 mb-3">
+              <CCol xl={2} md={4} sm={6}>
+                <CAlert color="light" className="mb-0">
+                  <div className="small text-body-secondary">Ingresos</div>
+                  <div className="fs-6 fw-semibold">{formatCurrency(apiSummary.income || 0)}</div>
+                </CAlert>
+              </CCol>
+              <CCol xl={2} md={4} sm={6}>
+                <CAlert color="light" className="mb-0">
+                  <div className="small text-body-secondary">Egresos</div>
+                  <div className="fs-6 fw-semibold">{formatCurrency(apiSummary.expenses || 0)}</div>
+                </CAlert>
+              </CCol>
+              <CCol xl={2} md={4} sm={6}>
+                <CAlert color="light" className="mb-0">
+                  <div className="small text-body-secondary">Pagos pendientes</div>
+                  <div className="fs-6 fw-semibold">{apiSummary.paymentsPending || 0}</div>
+                </CAlert>
+              </CCol>
+              <CCol xl={2} md={4} sm={6}>
+                <CAlert color="light" className="mb-0">
+                  <div className="small text-body-secondary">Pagos aprobados</div>
+                  <div className="fs-6 fw-semibold">{apiSummary.paymentsApproved || 0}</div>
+                </CAlert>
+              </CCol>
+              <CCol xl={2} md={4} sm={6}>
+                <CAlert color="light" className="mb-0">
+                  <div className="small text-body-secondary">Total pagado</div>
+                  <div className="fs-6 fw-semibold">{formatCurrency(apiSummary.totalPaid || 0)}</div>
+                </CAlert>
+              </CCol>
+              <CCol xl={2} md={4} sm={6}>
+                <CAlert color="light" className="mb-0">
+                  <div className="small text-body-secondary">Total por cobrar</div>
+                  <div className="fs-6 fw-semibold">{formatCurrency(apiSummary.totalToCollect || apiSummary.receivable || 0)}</div>
+                </CAlert>
+              </CCol>
+            </CRow>
+
+            <CRow className="g-3">
+              <CCol lg={6}>
+                <div className="d-flex align-items-center justify-content-between mb-2">
+                  <strong>Ultimos pagos</strong>
+                  {demoRefreshing && <small className="text-body-secondary">Actualizando...</small>}
+                </div>
+                <CTable responsive hover small align="middle">
+                  <CTableHead color="light">
+                    <CTableRow>
+                      <CTableHeaderCell>Pago</CTableHeaderCell>
+                      <CTableHeaderCell>Monto</CTableHeaderCell>
+                      <CTableHeaderCell>Estado</CTableHeaderCell>
+                      <CTableHeaderCell>Proveedor</CTableHeaderCell>
+                    </CTableRow>
+                  </CTableHead>
+                  <CTableBody>
+                    {lastApiPayments.length === 0 && (
+                      <CTableRow>
+                        <CTableDataCell colSpan={4} className="text-body-secondary">
+                          Sin pagos registrados.
+                        </CTableDataCell>
+                      </CTableRow>
+                    )}
+                    {lastApiPayments.map((payment) => (
+                      <CTableRow key={payment.id}>
+                        <CTableDataCell>
+                          <div className="fw-semibold text-break">{payment.id}</div>
+                          <div className="small text-body-secondary">{formatDate(payment.paymentDate || payment.transactionDate)}</div>
+                        </CTableDataCell>
+                        <CTableDataCell>{formatCurrency(payment.amount)}</CTableDataCell>
+                        <CTableDataCell>
+                          <CBadge color={getPaymentStatusColor(payment.status)}>{payment.status}</CBadge>
+                        </CTableDataCell>
+                        <CTableDataCell>{payment.provider || '-'}</CTableDataCell>
+                      </CTableRow>
+                    ))}
+                  </CTableBody>
+                </CTable>
+              </CCol>
+              <CCol lg={6}>
+                <div className="d-flex align-items-center justify-content-between mb-2">
+                  <strong>Ultimos movimientos</strong>
+                  <CButton color="secondary" variant="outline" size="sm" onClick={() => refreshFinanceDemoData()}>
+                    Actualizar
+                  </CButton>
+                </div>
+                <CTable responsive hover small align="middle">
+                  <CTableHead color="light">
+                    <CTableRow>
+                      <CTableHeaderCell>Movimiento</CTableHeaderCell>
+                      <CTableHeaderCell>Total</CTableHeaderCell>
+                      <CTableHeaderCell>Pagado / saldo</CTableHeaderCell>
+                      <CTableHeaderCell>Estado</CTableHeaderCell>
+                    </CTableRow>
+                  </CTableHead>
+                  <CTableBody>
+                    {lastApiMovements.length === 0 && (
+                      <CTableRow>
+                        <CTableDataCell colSpan={4} className="text-body-secondary">
+                          Sin movimientos desde API.
+                        </CTableDataCell>
+                      </CTableRow>
+                    )}
+                    {lastApiMovements.map((movement) => (
+                      <CTableRow key={movement.id}>
+                        <CTableDataCell>
+                          <div className="fw-semibold">{movement.description || '-'}</div>
+                          <div className="small text-body-secondary">{movement.documentNumber || movement.id}</div>
+                        </CTableDataCell>
+                        <CTableDataCell>{formatCurrency(movement.totalAmount)}</CTableDataCell>
+                        <CTableDataCell>
+                          <div>{formatCurrency(movement.paidAmount)}</div>
+                          <div className="small text-body-secondary">Saldo {formatCurrency(movement.pendingAmount || movement.balanceAmount || 0)}</div>
+                        </CTableDataCell>
+                        <CTableDataCell>
+                          <CBadge color={getStatusColor(movement.status)}>{movement.status}</CBadge>
+                        </CTableDataCell>
+                      </CTableRow>
+                    ))}
+                  </CTableBody>
+                </CTable>
+              </CCol>
+            </CRow>
           </CCardBody>
         </CCard>
       </CCol>
