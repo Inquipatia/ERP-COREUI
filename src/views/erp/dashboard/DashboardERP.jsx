@@ -575,12 +575,47 @@ const DashboardERP = () => {
     )
     const ordersInReview = normalizedWorkOrders.filter((order) => normalizeText(order.status).includes('revision'))
     const pendingOrders = normalizedWorkOrders.filter((order) =>
-      ['Borrador', 'Pendiente', 'Recibida', 'En proceso', 'Solicita antecedentes', 'En revision'].some((status) =>
+      ['Borrador', 'Pendiente', 'Recibida'].some((status) =>
+        normalizeText(order.status).includes(normalizeText(status)),
+      ),
+    )
+    const inProgressOrders = normalizedWorkOrders.filter((order) =>
+      ['Recibida', 'En proceso', 'Solicita antecedentes', 'Devuelta con observaciones'].some((status) =>
         normalizeText(order.status).includes(normalizeText(status)),
       ),
     )
     const urgentOrders = normalizedWorkOrders.filter((order) => order.priority === 'Urgente')
     const overdueOrders = normalizedWorkOrders.filter(isWorkOrderOverdue)
+    const completedOrders = normalizedWorkOrders.filter((order) =>
+      ['Aprobada', 'Finalizada'].some((status) => normalizeText(order.status).includes(normalizeText(status))),
+    )
+    const workOrderCounts = {
+      completed: pickApiNumber(
+        dashboardApiPayload,
+        ['totals.workOrdersCompleted', 'workOrderOperationalSummary.completed', 'charts.workOrders.operationalSummary.completed'],
+        completedOrders.length,
+      ),
+      inProgress: pickApiNumber(
+        dashboardApiPayload,
+        ['totals.workOrdersInProgress', 'workOrderOperationalSummary.inProgress', 'charts.workOrders.operationalSummary.inProgress'],
+        inProgressOrders.length,
+      ),
+      overdue: pickApiNumber(
+        dashboardApiPayload,
+        ['totals.workOrdersOverdue', 'workOrderOperationalSummary.overdue', 'charts.workOrders.operationalSummary.overdue'],
+        overdueOrders.length,
+      ),
+      pending: pickApiNumber(
+        dashboardApiPayload,
+        ['totals.workOrdersPending', 'workOrderOperationalSummary.pending', 'charts.workOrders.operationalSummary.pending'],
+        pendingOrders.length,
+      ),
+      urgent: pickApiNumber(
+        dashboardApiPayload,
+        ['totals.workOrdersUrgent', 'workOrderOperationalSummary.urgent', 'charts.workOrders.operationalSummary.urgent'],
+        urgentOrders.length,
+      ),
+    }
     const tendersByRisk = preferAggregateEntries(
       pickApiValue(dashboardApiPayload, ['tendersByRisk', 'charts.tenders.byRisk', 'charts.tenders.byRiskLevel']),
       Object.entries(aggregateBy(normalizedTenders, (tender) => tender.riskLevel)),
@@ -604,7 +639,8 @@ const DashboardERP = () => {
         return secondDate - firstDate
       })
       .slice(0, 6)
-    const latestWorkOrders = [...normalizedWorkOrders]
+    const apiLatestWorkOrders = pickApiArray(dashboardApiPayload, ['collections.workOrders', 'recent.workOrders'])
+    const latestWorkOrders = (Array.isArray(apiLatestWorkOrders) ? apiLatestWorkOrders.map(normalizeWorkOrder) : [...normalizedWorkOrders])
       .sort((firstOrder, secondOrder) => new Date(secondOrder.updatedAt || 0) - new Date(firstOrder.updatedAt || 0))
       .slice(0, 6)
     const apiRecentActivity =
@@ -678,6 +714,7 @@ const DashboardERP = () => {
       totalQuoted,
       upcomingTenders,
       urgentOrders,
+      workOrderCounts,
       workOrdersByArea,
       workOrdersByStatus,
     }
@@ -773,7 +810,7 @@ const DashboardERP = () => {
                       <KpiCard dark label="Ticket promedio" value={hiddenMoney(canViewFinance, dashboardData.averageQuote)} helper="cotizaciones" color="#7c3aed" />
                     </CCol>
                     <CCol xs={6}>
-                      <KpiCard dark label="Ordenes urgentes" value={dashboardData.urgentOrders.length} helper="prioridad alta" color="#dc2626" />
+                      <KpiCard dark label="Ordenes urgentes" value={dashboardData.workOrderCounts.urgent} helper="prioridad alta" color="#dc2626" />
                     </CCol>
                     <CCol xs={6}>
                       <KpiCard dark label="Docs activos" value={dashboardData.documentCount} helper="centro documental" color="#16a34a" />
@@ -828,7 +865,7 @@ const DashboardERP = () => {
           <KpiCard label="Cotizaciones activas" value={dashboardData.activeQuotes.length} helper="en flujo comercial" color="#3b82f6" />
         </CCol>
         <CCol sm={6} xl={2}>
-          <KpiCard label="Ordenes pendientes" value={dashboardData.pendingOrders.length} helper={`${dashboardData.ordersInReview.length} en revision`} color="#f59e0b" />
+          <KpiCard label="Ordenes pendientes" value={dashboardData.workOrderCounts.pending} helper={`${dashboardData.ordersInReview.length} en revision`} color="#f59e0b" />
         </CCol>
         <CCol sm={6} xl={2}>
           <KpiCard label="Licitaciones vigentes" value={dashboardData.activeTenders.length} helper={`${dashboardData.closingSoonTenders.length} por cerrar`} color="#7c3aed" />
@@ -957,6 +994,13 @@ const DashboardERP = () => {
             <CCardBody>
               <h5 className="fw-bold mb-1">Ordenes por etapa</h5>
               <div className="text-body-secondary small mb-4">Bar chart de flujo operativo</div>
+              <div className="d-flex gap-2 flex-wrap mb-3">
+                <CBadge color="warning">Pendientes: {dashboardData.workOrderCounts.pending}</CBadge>
+                <CBadge color="info">En proceso: {dashboardData.workOrderCounts.inProgress}</CBadge>
+                <CBadge color="danger">Urgentes: {dashboardData.workOrderCounts.urgent}</CBadge>
+                <CBadge color="danger">Vencidas: {dashboardData.workOrderCounts.overdue}</CBadge>
+                <CBadge color="success">Completadas: {dashboardData.workOrderCounts.completed}</CBadge>
+              </div>
               {hasChartEntries(dashboardData.workOrdersByStatus) ? (
                 <CChartBar
                   data={{

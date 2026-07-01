@@ -19,7 +19,10 @@ export const PERMISSIONS = [
   'tenders.export',
   'workorders.view',
   'workorders.create',
+  'workorders.update',
   'workorders.assign',
+  'workorders.complete',
+  'workorders.delete',
   'workorders.close',
   'users.view',
   'users.manage',
@@ -212,9 +215,9 @@ const ROLE_PERMISSION_MAP = {
     'ai.chat',
   ],
 
-  // Jorge queda limitado: puede ver órdenes/documentos, pero NO crear órdenes.
-  'disenador imprenta': ['dashboard.view', 'workorders.view', 'documents.view', 'ai.chat'],
-  'diseno / diseno imprenta': ['dashboard.view', 'workorders.view', 'documents.view', 'ai.chat'],
+  // Jorge queda limitado: puede crear/ver OT de diseño y documentos, sin finanzas ni licitaciones completas.
+  'disenador imprenta': ['dashboard.view', 'workorders.view', 'workorders.create', 'workorders.update', 'documents.view', 'ai.chat'],
+  'diseno / diseno imprenta': ['dashboard.view', 'workorders.view', 'workorders.create', 'workorders.update', 'documents.view', 'ai.chat'],
 
   ventas: [
     'dashboard.view',
@@ -337,17 +340,37 @@ export const normalizeAuthUser = (user = {}) => {
     permissions = PERMISSIONS
   }
 
-  // Regla Rubik: todos pueden crear órdenes de trabajo, excepto Jorge.
+  // Regla Rubik: los perfiles operativos pueden crear órdenes de trabajo.
   if (!isOwner && !isWorkOrderLimited) {
-    permissions = uniq([...permissions, 'workorders.view', 'workorders.create'])
+    permissions = uniq([...permissions, 'workorders.view', 'workorders.create', 'workorders.update'])
   }
 
-  // Jorge: puede ver órdenes/documentos, pero no crear/asignar/cerrar órdenes.
+  // Jorge: puede crear/ver OT de diseño y documentos, pero no asignar/cerrar/borrar ni ver finanzas/licitaciones completas.
   if (isWorkOrderLimited) {
-    permissions = uniq([...permissions, 'dashboard.view', 'workorders.view', 'documents.view', 'ai.chat'])
+    permissions = uniq([
+      ...permissions,
+      'dashboard.view',
+      'workorders.view',
+      'workorders.create',
+      'workorders.update',
+      'documents.view',
+      'ai.chat',
+    ])
     permissions = permissions.filter(
       (permission) =>
-        !['workorders.create', 'workorders.assign', 'workorders.close'].includes(permission),
+        ![
+          'finance.view',
+          'finance.manage',
+          'finance.payments',
+          'finance.reports',
+          'finance.export',
+          'tenders.analyze',
+          'tenders.export',
+          'workorders.assign',
+          'workorders.complete',
+          'workorders.delete',
+          'workorders.close',
+        ].includes(permission),
     )
   }
 

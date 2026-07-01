@@ -18,6 +18,23 @@ export const WORK_ORDER_STATUSES = [
 
 export const WORK_ORDER_PRIORITIES = ['Baja', 'Media', 'Alta', 'Urgente']
 
+const WORK_ORDER_STATUS_CODE_TO_LABEL = {
+  draft: 'Borrador',
+  pending: 'Pendiente',
+  assigned: 'Recibida',
+  in_progress: 'En proceso',
+  paused: 'Pausada',
+  completed: 'Finalizada',
+  cancelled: 'Rechazada',
+}
+
+const WORK_ORDER_PRIORITY_CODE_TO_LABEL = {
+  baja: 'Baja',
+  media: 'Media',
+  alta: 'Alta',
+  urgente: 'Urgente',
+}
+
 export const WORK_ORDER_AREAS = [
   'Ventas',
   'Ventas Públicas',
@@ -122,6 +139,23 @@ const getDateOffset = (days) => {
 const safeArray = (value) => (Array.isArray(value) ? value : [])
 
 const normalizeEmail = (email = '') => String(email || '').trim().toLowerCase()
+
+const normalizeComparableText = (value = '') =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+
+const normalizeStatusForUi = (status = '') => {
+  const normalizedStatus = normalizeComparableText(status).replace(/\s+/g, '_')
+  return WORK_ORDER_STATUS_CODE_TO_LABEL[normalizedStatus] || status || 'Pendiente'
+}
+
+const normalizePriorityForUi = (priority = '') => {
+  const normalizedPriority = normalizeComparableText(priority)
+  return WORK_ORDER_PRIORITY_CODE_TO_LABEL[normalizedPriority] || priority || 'Media'
+}
 
 const normalizeNumber = (value, fallback = 0) => {
   const parsed = Number(value)
@@ -247,9 +281,9 @@ export const getWorkOrderProgressColor = (progress) => {
 
 export const normalizeWorkOrder = (workOrder = {}) => {
   const requesterName = workOrder.requesterName || workOrder.requestedBy || ''
-  const assigneeName = workOrder.assigneeName || workOrder.assignedTo || ''
+  const assigneeName = workOrder.assigneeName || workOrder.assignedToName || workOrder.assignedTo || ''
   const createdAt = workOrder.createdAt || new Date().toISOString()
-  const status = workOrder.status || 'Pendiente'
+  const status = normalizeStatusForUi(workOrder.statusLabel || workOrder.status || 'Pendiente')
   const baseProgress = WORK_ORDER_STATUS_PROGRESS[status] ?? 20
   const deliverables = workOrder.deliverables || ''
 
@@ -259,9 +293,15 @@ export const normalizeWorkOrder = (workOrder = {}) => {
     id: workOrder.id || createLocalId('ot'),
     title: workOrder.title || '',
     type: workOrder.type || 'Producción gráfica',
-    client: workOrder.client || workOrder.cliente || '',
+    workOrderNumber: workOrder.workOrderNumber || workOrder.number || workOrder.id || '',
+    clientId: workOrder.clientId || '',
+    client: workOrder.clientName || workOrder.client || workOrder.cliente || '',
+    clientName: workOrder.clientName || workOrder.client || workOrder.cliente || '',
     company: workOrder.company || workOrder.empresa || '',
     quoteNumber: String(workOrder.quoteNumber || workOrder.numeroCotizacion || ''),
+    quoteId: workOrder.quoteId || '',
+    documentId: workOrder.documentId || '',
+    tenderId: workOrder.tenderId || '',
     requesterName,
     requesterEmail: workOrder.requesterEmail || '',
     requesterRole: workOrder.requesterRole || '',
@@ -269,18 +309,28 @@ export const normalizeWorkOrder = (workOrder = {}) => {
     assigneeEmail: workOrder.assigneeEmail || '',
     assigneeRole: workOrder.assigneeRole || '',
     sourceArea: workOrder.sourceArea || 'Ventas',
-    targetArea: workOrder.targetArea || 'Diseño',
-    priority: workOrder.priority || 'Media',
+    targetArea: workOrder.targetArea || workOrder.assignedArea || 'Diseño',
+    assignedArea: workOrder.assignedArea || workOrder.targetArea || 'Diseño',
+    assignedToId: workOrder.assignedToId || '',
+    assignedToName: assigneeName,
+    priority: normalizePriorityForUi(workOrder.priorityLabel || workOrder.priority || 'Media'),
     status,
     progressManual: clamp(workOrder.progressManual ?? baseProgress),
     dueDate: workOrder.dueDate || '',
+    startDate: workOrder.startDate || '',
+    completedAt: workOrder.completedAt || '',
     description: workOrder.description || '',
-    requirements: workOrder.requirements || '',
+    requirements: workOrder.requirements || workOrder.details || '',
+    details: workOrder.details || workOrder.requirements || '',
     deliverables,
-    observations: workOrder.observations || '',
+    observations: workOrder.observations || workOrder.notes || '',
+    notes: workOrder.notes || workOrder.observations || '',
+    items: safeArray(workOrder.items),
+    tasks: safeArray(workOrder.tasks),
+    attachments: safeArray(workOrder.attachments),
     deliverableChecklist: normalizeChecklist(workOrder.deliverableChecklist, deliverables),
     comments: safeArray(workOrder.comments).map(normalizeComment),
-    workflowLog: safeArray(workOrder.workflowLog).map(normalizeMovement),
+    workflowLog: safeArray(workOrder.workflowLog || workOrder.movements).map(normalizeMovement),
     createdAt,
     updatedAt: workOrder.updatedAt || createdAt,
   }
@@ -301,7 +351,11 @@ export const isAssignee = (workOrder = {}, user = {}) =>
   normalizeEmail(workOrder.assigneeEmail) === normalizeEmail(user.email)
 
 export const isOwnerOrManager = (user = {}, hasPermission = () => false) =>
-  hasPermission('admin.all') || hasPermission('workorders.assign') || hasPermission('workorders.close')
+  hasPermission('admin.all') ||
+  hasPermission('workorders.assign') ||
+  hasPermission('workorders.complete') ||
+  hasPermission('workorders.delete') ||
+  hasPermission('workorders.close')
 
 export const canUserViewWorkOrder = (workOrder = {}, user = {}, hasPermission = () => false) => {
   if (isOwnerOrManager(user, hasPermission)) return true
@@ -309,8 +363,6 @@ export const canUserViewWorkOrder = (workOrder = {}, user = {}, hasPermission = 
 }
 
 export const canUserCreateWorkOrder = (user = {}, hasPermission = () => false) => {
-  const email = normalizeEmail(user.email)
-  if (email === 'jgutierrez@rubikcreaciones.cl') return false
   return hasPermission('workorders.create') || hasPermission('admin.all')
 }
 
@@ -340,7 +392,7 @@ export const canUserRunWorkOrderAction = (
   }
 
   if ([WORK_ORDER_ACTIONS.FINISH, WORK_ORDER_ACTIONS.REJECT].includes(action)) {
-    return hasPermission('workorders.close')
+    return hasPermission('workorders.complete') || hasPermission('workorders.close')
   }
 
   if (action === WORK_ORDER_ACTIONS.REOPEN) {

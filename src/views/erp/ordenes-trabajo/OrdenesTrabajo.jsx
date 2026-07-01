@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   CAlert,
   CBadge,
@@ -30,6 +30,14 @@ import {
 } from '@coreui/react'
 import { mockUsers } from '../../../data/mockUsers'
 import { useAuth } from '../../../context/AuthContext'
+import {
+  createWorkOrder as createWorkOrderApi,
+  createWorkOrderFromDocument as createWorkOrderFromDocumentApi,
+  createWorkOrderFromQuote as createWorkOrderFromQuoteApi,
+  deleteWorkOrder as deleteWorkOrderApi,
+  listWorkOrders as listWorkOrdersApi,
+  patchWorkOrder as patchWorkOrderApi,
+} from '../../../services/workOrdersApi'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 import { STORAGE_KEYS, useLocalStorageState } from '../../../utils/storage'
 import {
@@ -69,6 +77,18 @@ const normalizeUser = (user = {}) => ({
   position: user.position || user.cargo || '',
   area: user.area || '',
 })
+
+const extractWorkOrderItems = (payload) => {
+  if (Array.isArray(payload)) return payload
+  if (Array.isArray(payload?.items)) return payload.items
+  return []
+}
+
+const getApiErrorMessage = (error, fallback) =>
+  error?.response?.data?.error ||
+  error?.response?.data?.message ||
+  error?.message ||
+  fallback
 
 const getWorkOrderAreaFromUser = (user) => {
   const area = user.area || ''
@@ -241,8 +261,12 @@ const matchesFilters = (order, filters) => {
   const matchesPriority = !filters.priority || order.priority === filters.priority
   const matchesArea =
     !filters.area || order.sourceArea === filters.area || order.targetArea === filters.area
+  const matchesResponsible =
+    !filters.responsible ||
+    order.assigneeEmail === filters.responsible ||
+    order.assigneeName === filters.responsible
 
-  return matchesSearch && matchesStatus && matchesPriority && matchesArea
+  return matchesSearch && matchesStatus && matchesPriority && matchesArea && matchesResponsible
 }
 
 const getActor = (currentUser = {}) => ({
@@ -261,20 +285,30 @@ const OrdenesTrabajo = () => {
   const { currentUser, hasPermission } = useAuth()
   const canCreateWorkOrders = canUserCreateWorkOrder(currentUser || {}, hasPermission)
   const canAssignWorkOrders = hasPermission('workorders.assign') || hasPermission('admin.all')
-  const canCloseWorkOrders = hasPermission('workorders.close') || hasPermission('admin.all')
+  const canCloseWorkOrders =
+    hasPermission('workorders.complete') || hasPermission('workorders.close') || hasPermission('admin.all')
+  const canDeleteWorkOrders =
+    hasPermission('workorders.delete') || hasPermission('workorders.assign') || hasPermission('admin.all')
   const canViewAllWorkOrders = canAssignWorkOrders || canCloseWorkOrders || hasPermission('admin.all')
 
-  const [workOrders, setWorkOrders] = useLocalStorageState(
+  const [fallbackWorkOrders, setFallbackWorkOrders] = useLocalStorageState(
     WORK_ORDER_STORAGE_KEY,
     mockWorkOrders.map(normalizeWorkOrder),
   )
+  const [apiWorkOrders, setApiWorkOrders] = useState([])
+  const [apiLoaded, setApiLoaded] = useState(false)
+  const [apiError, setApiError] = useState('')
+  const [isApiLoading, setIsApiLoading] = useState(false)
   const [users] = useLocalStorageState(USERS_STORAGE_KEY, mockUsers.map(normalizeUser))
   const [filters, setFilters] = useState({
     search: '',
     status: '',
     priority: '',
     area: '',
+    responsible: '',
   })
+  const [fromQuoteId, setFromQuoteId] = useState('')
+  const [fromDocumentId, setFromDocumentId] = useState('')
   const [visible, setVisible] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [editingId, setEditingId] = useState(null)
@@ -283,6 +317,56 @@ const OrdenesTrabajo = () => {
   const [error, setError] = useState('')
   const [workflowComment, setWorkflowComment] = useState('')
   const [workflowProgress, setWorkflowProgress] = useState(0)
+  const workOrders = apiLoaded ? apiWorkOrders : fallbackWorkOrders
+
+  const setWorkOrders = useCallback(
+    (updater) => {
+      const applyUpdate = (currentOrders) =>
+        typeof updater === 'function' ? updater(Array.isArray(currentOrders) ? currentOrders : []) : updater
+
+      if (apiLoaded) {
+        setApiWorkOrders((currentOrders) => applyUpdate(currentOrders))
+      }
+
+      setFallbackWorkOrders((currentOrders) => applyUpdate(currentOrders))
+    },
+    [apiLoaded, setFallbackWorkOrders],
+  )
+
+  const loadWorkOrdersFromApi = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!silent) {
+        setIsApiLoading(true)
+      }
+
+      try {
+        const payload = await listWorkOrdersApi()
+        const items = extractWorkOrderItems(payload).map(normalizeWorkOrder)
+        setApiWorkOrders(items)
+        setFallbackWorkOrders(items)
+        setApiLoaded(true)
+        setApiError('')
+      } catch (loadError) {
+        console.error('Error cargando ordenes de trabajo desde API:', loadError)
+        setApiLoaded(false)
+        setApiError(
+          getApiErrorMessage(
+            loadError,
+            'No se pudo conectar con la API de ordenes de trabajo. Se muestra respaldo local temporal.',
+          ),
+        )
+      } finally {
+        if (!silent) {
+          setIsApiLoading(false)
+        }
+      }
+    },
+    [setFallbackWorkOrders],
+  )
+
+  useEffect(() => {
+    void loadWorkOrdersFromApi()
+  }, [loadWorkOrdersFromApi])
 
   const normalizedOrders = useMemo(
     () => (Array.isArray(workOrders) ? workOrders : []).map(normalizeWorkOrder),
@@ -369,16 +453,43 @@ const OrdenesTrabajo = () => {
     [visibleOrders],
   )
 
-  const syncSelectedOrder = (nextOrder) => {
-    const normalized = normalizeWorkOrder(nextOrder)
+  const upsertWorkOrderInState = useCallback(
+    (nextOrder) => {
+      const normalized = normalizeWorkOrder(nextOrder)
 
-    setWorkOrders((currentOrders) =>
-      (Array.isArray(currentOrders) ? currentOrders : []).map((order) =>
-        normalizeWorkOrder(order).id === normalized.id ? normalized : order,
-      ),
-    )
-    setSelectedOrder(normalized)
-    setWorkflowProgress(calculateWorkOrderProgress(normalized))
+      setWorkOrders((currentOrders) => {
+        const orders = Array.isArray(currentOrders) ? currentOrders : []
+        const exists = orders.some((order) => normalizeWorkOrder(order).id === normalized.id)
+        if (!exists) return [normalized, ...orders]
+
+        return orders.map((order) => (normalizeWorkOrder(order).id === normalized.id ? normalized : order))
+      })
+
+      return normalized
+    },
+    [setWorkOrders],
+  )
+
+  const syncSelectedOrder = async (nextOrder) => {
+    let normalized = normalizeWorkOrder(nextOrder)
+
+    try {
+      if (apiLoaded) {
+        normalized = normalizeWorkOrder(await patchWorkOrderApi(normalized.id, normalized))
+        setApiError('')
+      }
+
+      upsertWorkOrderInState(normalized)
+      setSelectedOrder(normalized)
+      setWorkflowProgress(calculateWorkOrderProgress(normalized))
+      return true
+    } catch (syncError) {
+      console.error('Error sincronizando orden de trabajo:', syncError)
+      setApiError(
+        getApiErrorMessage(syncError, 'No se pudo guardar el cambio en la API de ordenes de trabajo.'),
+      )
+      return false
+    }
   }
 
   const handleFilterChange = (event) => {
@@ -491,7 +602,7 @@ const OrdenesTrabajo = () => {
     return ''
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
 
     if (!editingId && !canCreateWorkOrders) {
@@ -523,35 +634,56 @@ const OrdenesTrabajo = () => {
       updatedAt: new Date().toISOString(),
     })
 
-    setWorkOrders((currentOrders) => {
-      if (editingId) {
-        return (Array.isArray(currentOrders) ? currentOrders : []).map((order) =>
-          normalizeWorkOrder(order).id === editingId ? payload : order,
-        )
-      }
+    try {
+      const savedOrder = apiLoaded
+        ? normalizeWorkOrder(
+            editingId ? await patchWorkOrderApi(editingId, payload) : await createWorkOrderApi(payload),
+          )
+        : payload
 
-      return [payload, ...(Array.isArray(currentOrders) ? currentOrders : [])]
-    })
-
-    setMessage(editingId ? 'Orden de trabajo actualizada.' : 'Orden de trabajo creada.')
-    closeModal()
+      upsertWorkOrderInState(savedOrder)
+      setApiError('')
+      setMessage(
+        editingId
+          ? 'Orden de trabajo actualizada.'
+          : apiLoaded
+            ? 'Orden de trabajo creada en API/MySQL.'
+            : 'Orden de trabajo creada en respaldo local temporal.',
+      )
+      closeModal()
+    } catch (saveError) {
+      console.error('Error guardando orden de trabajo:', saveError)
+      const errorMessage = getApiErrorMessage(saveError, 'No se pudo guardar la orden de trabajo en la API.')
+      setError(errorMessage)
+      setApiError(errorMessage)
+    }
   }
 
-  const handleDelete = (orderId) => {
-    if (!canAssignWorkOrders) {
+  const handleDelete = async (orderId) => {
+    if (!canDeleteWorkOrders) {
       setMessage('Tu perfil no permite eliminar órdenes de trabajo.')
       return
     }
 
-    setWorkOrders((currentOrders) =>
-      (Array.isArray(currentOrders) ? currentOrders : []).filter(
-        (order) => normalizeWorkOrder(order).id !== orderId,
-      ),
-    )
-    setMessage('Orden de trabajo eliminada localmente.')
+    try {
+      if (apiLoaded) {
+        await deleteWorkOrderApi(orderId)
+      }
+
+      setWorkOrders((currentOrders) =>
+        (Array.isArray(currentOrders) ? currentOrders : []).filter(
+          (order) => normalizeWorkOrder(order).id !== orderId,
+        ),
+      )
+      setApiError('')
+      setMessage('Orden de trabajo eliminada.')
+    } catch (deleteError) {
+      console.error('Error eliminando orden de trabajo:', deleteError)
+      setApiError(getApiErrorMessage(deleteError, 'No se pudo eliminar la orden de trabajo en la API.'))
+    }
   }
 
-  const handleDuplicate = (order) => {
+  const handleDuplicate = async (order) => {
     if (!canCreateWorkOrders) {
       setMessage('Tu perfil no permite duplicar órdenes de trabajo.')
       return
@@ -569,11 +701,80 @@ const OrdenesTrabajo = () => {
       updatedAt: new Date().toISOString(),
     })
 
-    setWorkOrders((currentOrders) => [duplicatedOrder, ...(Array.isArray(currentOrders) ? currentOrders : [])])
-    setMessage('Orden de trabajo duplicada.')
+    try {
+      const savedOrder = apiLoaded ? normalizeWorkOrder(await createWorkOrderApi(duplicatedOrder)) : duplicatedOrder
+      upsertWorkOrderInState(savedOrder)
+      setApiError('')
+      setMessage(apiLoaded ? 'Orden de trabajo duplicada en API/MySQL.' : 'Orden de trabajo duplicada en respaldo local temporal.')
+    } catch (duplicateError) {
+      console.error('Error duplicando orden de trabajo:', duplicateError)
+      setApiError(getApiErrorMessage(duplicateError, 'No se pudo duplicar la orden de trabajo en la API.'))
+    }
   }
 
-  const handleWorkflowAction = (action) => {
+  const handleCreateFromQuote = async () => {
+    const quoteId = fromQuoteId.trim()
+
+    if (!quoteId) {
+      setApiError('Ingresa el ID de la cotizacion para crear la orden de trabajo.')
+      return
+    }
+
+    if (!apiLoaded) {
+      setApiError('La creacion desde cotizacion requiere API disponible para usar datos reales.')
+      return
+    }
+
+    try {
+      const createdOrder = normalizeWorkOrder(
+        await createWorkOrderFromQuoteApi(quoteId, {
+          assignedArea: 'Diseño',
+          priority: 'media',
+          status: 'pending',
+        }),
+      )
+      upsertWorkOrderInState(createdOrder)
+      setFromQuoteId('')
+      setApiError('')
+      setMessage('Orden de trabajo creada desde cotizacion.')
+    } catch (quoteError) {
+      console.error('Error creando orden desde cotizacion:', quoteError)
+      setApiError(getApiErrorMessage(quoteError, 'No se pudo crear la orden desde la cotizacion.'))
+    }
+  }
+
+  const handleCreateFromDocument = async () => {
+    const documentId = fromDocumentId.trim()
+
+    if (!documentId) {
+      setApiError('Ingresa el ID del documento para crear la orden de trabajo.')
+      return
+    }
+
+    if (!apiLoaded) {
+      setApiError('La creacion desde documento requiere API disponible para usar datos reales.')
+      return
+    }
+
+    try {
+      const createdOrder = normalizeWorkOrder(
+        await createWorkOrderFromDocumentApi(documentId, {
+          assignedArea: 'Diseño',
+          priority: 'media',
+          status: 'pending',
+        }),
+      )
+      upsertWorkOrderInState(createdOrder)
+      setFromDocumentId('')
+      setApiError('')
+      setMessage('Orden de trabajo creada desde documento.')
+    } catch (documentError) {
+      console.error('Error creando orden desde documento:', documentError)
+      setApiError(getApiErrorMessage(documentError, 'No se pudo crear la orden desde el documento.'))
+    }
+  }
+
+  const handleWorkflowAction = async (action) => {
     if (!selectedOrder) return
 
     const updatedOrder = updateWorkOrderStatus(selectedOrder, {
@@ -583,12 +784,14 @@ const OrdenesTrabajo = () => {
       progressManual: workflowProgress,
     })
 
-    syncSelectedOrder(updatedOrder)
-    setWorkflowComment('')
-    setMessage('Movimiento registrado en la orden de trabajo.')
+    const synced = await syncSelectedOrder(updatedOrder)
+    if (synced) {
+      setWorkflowComment('')
+      setMessage('Movimiento registrado en la orden de trabajo.')
+    }
   }
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!selectedOrder) return
 
     const updatedOrder = addWorkOrderComment(selectedOrder, {
@@ -597,12 +800,14 @@ const OrdenesTrabajo = () => {
       type: 'Comentario',
     })
 
-    syncSelectedOrder(updatedOrder)
-    setWorkflowComment('')
-    setMessage('Comentario agregado a la orden de trabajo.')
+    const synced = await syncSelectedOrder(updatedOrder)
+    if (synced) {
+      setWorkflowComment('')
+      setMessage('Comentario agregado a la orden de trabajo.')
+    }
   }
 
-  const handleProgressUpdate = () => {
+  const handleProgressUpdate = async () => {
     if (!selectedOrder) return
 
     const updatedOrder = updateWorkOrderProgress(selectedOrder, {
@@ -611,12 +816,14 @@ const OrdenesTrabajo = () => {
       message: workflowComment,
     })
 
-    syncSelectedOrder(updatedOrder)
-    setWorkflowComment('')
-    setMessage('Avance actualizado.')
+    const synced = await syncSelectedOrder(updatedOrder)
+    if (synced) {
+      setWorkflowComment('')
+      setMessage('Avance actualizado.')
+    }
   }
 
-  const handleToggleDeliverable = (item, done, index) => {
+  const handleToggleDeliverable = async (item, done, index) => {
     if (!selectedOrder) return
 
     const updatedOrder = toggleWorkOrderDeliverable(selectedOrder, {
@@ -626,8 +833,10 @@ const OrdenesTrabajo = () => {
       actor: getActor(currentUser),
     })
 
-    syncSelectedOrder(updatedOrder)
-    setMessage(done ? 'Entregable marcado como completado.' : 'Entregable reabierto.')
+    const synced = await syncSelectedOrder(updatedOrder)
+    if (synced) {
+      setMessage(done ? 'Entregable marcado como completado.' : 'Entregable reabierto.')
+    }
   }
 
   const handleExportWorkOrdersList = async () => {
@@ -843,11 +1052,66 @@ const OrdenesTrabajo = () => {
               </CAlert>
             )}
 
+            {isApiLoading && <CAlert color="info">Cargando ordenes de trabajo desde API...</CAlert>}
+
+            {apiError && (
+              <CAlert color="warning" dismissible onClose={() => setApiError('')}>
+                {apiError}
+              </CAlert>
+            )}
+
             {!canViewAllWorkOrders && (
               <CAlert color="info">
                 Tu perfil muestra órdenes donde participas como solicitante o responsable. Puedes
                 gestionar fases, comentarios y entregables cuando la orden esté asignada a ti.
               </CAlert>
+            )}
+
+            {canCreateWorkOrders && (
+              <CRow className="g-3 mb-3">
+                <CCol lg={5} md={6}>
+                  <CFormLabel htmlFor="fromQuoteId">Crear desde cotizacion</CFormLabel>
+                  <CFormInput
+                    id="fromQuoteId"
+                    value={fromQuoteId}
+                    onChange={(event) => setFromQuoteId(event.target.value)}
+                    placeholder="ID de cotizacion"
+                    disabled={!apiLoaded || isApiLoading}
+                  />
+                </CCol>
+                <CCol lg={1} md={6} className="d-flex align-items-end">
+                  <CButton
+                    color="primary"
+                    type="button"
+                    variant="outline"
+                    onClick={handleCreateFromQuote}
+                    disabled={!apiLoaded || isApiLoading}
+                  >
+                    Crear
+                  </CButton>
+                </CCol>
+                <CCol lg={5} md={6}>
+                  <CFormLabel htmlFor="fromDocumentId">Crear desde documento</CFormLabel>
+                  <CFormInput
+                    id="fromDocumentId"
+                    value={fromDocumentId}
+                    onChange={(event) => setFromDocumentId(event.target.value)}
+                    placeholder="ID de documento"
+                    disabled={!apiLoaded || isApiLoading}
+                  />
+                </CCol>
+                <CCol lg={1} md={6} className="d-flex align-items-end">
+                  <CButton
+                    color="primary"
+                    type="button"
+                    variant="outline"
+                    onClick={handleCreateFromDocument}
+                    disabled={!apiLoaded || isApiLoading}
+                  >
+                    Crear
+                  </CButton>
+                </CCol>
+              </CRow>
             )}
 
             <CRow className="g-3 mb-3">
@@ -913,12 +1177,29 @@ const OrdenesTrabajo = () => {
                 </CFormSelect>
               </CCol>
 
+              <CCol xl={2} md={4}>
+                <CFormLabel htmlFor="responsibleFilter">Responsable</CFormLabel>
+                <CFormSelect
+                  id="responsibleFilter"
+                  name="responsible"
+                  value={filters.responsible}
+                  onChange={handleFilterChange}
+                >
+                  <option value="">Todos</option>
+                  {normalizedUsers.map((user) => (
+                    <option key={`responsible-${user.email || user.id}`} value={user.email || user.name}>
+                      {user.name}
+                    </option>
+                  ))}
+                </CFormSelect>
+              </CCol>
+
               <CCol xl={2} className="d-flex align-items-end">
                 <CButton
                   color="secondary"
                   type="button"
                   variant="outline"
-                  onClick={() => setFilters({ search: '', status: '', priority: '', area: '' })}
+                  onClick={() => setFilters({ search: '', status: '', priority: '', area: '', responsible: '' })}
                 >
                   Limpiar filtros
                 </CButton>
@@ -1064,7 +1345,7 @@ const OrdenesTrabajo = () => {
                                 Duplicar
                               </CButton>
                             )}
-                            {canAssignWorkOrders && (
+                            {canDeleteWorkOrders && (
                               <CButton
                                 color="danger"
                                 variant="outline"
