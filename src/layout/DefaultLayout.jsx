@@ -2,6 +2,7 @@ import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { AppContent, AppSidebar, AppFooter, AppHeader } from '../components/index'
 import { useAuth } from '../context/AuthContext'
+import ApiFallbackAlert from '../components/ApiFallbackAlert'
 import AssistantFloatingChat from '../components/AssistantFloatingChat'
 
 
@@ -22,6 +23,7 @@ const DefaultLayout = () => {
       <AppSidebar />
       <div className="wrapper d-flex flex-column min-vh-100">
         <AppHeader />
+        <ApiFallbackAlert />
         <div className="body flex-grow-1">
           <AppContent />
         </div>

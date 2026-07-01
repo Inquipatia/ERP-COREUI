@@ -7,6 +7,10 @@ const API_SESSION_KEY = 'rubik.erp.apiSession'
 const CURRENT_USER_KEY = 'rubik.erp.currentUser'
 const TEMP_DEV_PASSWORD = '123456'
 
+export const API_AUTH_EXPIRED_EVENT = 'rubik-auth-expired'
+
+let authRedirectRequested = false
+
 const canUseLocalStorage = () => typeof window !== 'undefined' && Boolean(window.localStorage)
 
 const readJsonStorage = (key, fallbackValue = null) => {
@@ -28,6 +32,23 @@ const writeJsonStorage = (key, value) => {
 const removeStorage = (key) => {
   if (!canUseLocalStorage()) return
   window.localStorage.removeItem(key)
+}
+
+const dispatchWindowEvent = (eventName, detail = {}) => {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return
+  window.dispatchEvent(new CustomEvent(eventName, { detail }))
+}
+
+const redirectToLogin = () => {
+  if (typeof window === 'undefined' || authRedirectRequested) return
+
+  const hashPath = String(window.location.hash || '').replace(/^#/, '')
+  const currentPath = hashPath || window.location.pathname || ''
+
+  if (currentPath.startsWith('/login')) return
+
+  authRedirectRequested = true
+  window.location.hash = '/login'
 }
 
 const getStoredApiSession = () => readJsonStorage(API_SESSION_KEY, null)
@@ -65,12 +86,22 @@ export const getApiBaseUrl = () => API_BASE_URL
 export const getCurrentWebUser = () => readJsonStorage(CURRENT_USER_KEY, null)
 
 export const setApiSession = (session) => {
+  authRedirectRequested = false
   writeJsonStorage(API_SESSION_KEY, session)
   return session
 }
 
 export const clearApiSession = () => {
   removeStorage(API_SESSION_KEY)
+}
+
+const expireApiSession = () => {
+  clearApiSession()
+  removeStorage(CURRENT_USER_KEY)
+  dispatchWindowEvent(API_AUTH_EXPIRED_EVENT, {
+    message: 'Sesion API expirada. Inicia sesion nuevamente.',
+  })
+  redirectToLogin()
 }
 
 export const post = async (endpoint, data, options = {}) =>
@@ -132,7 +163,7 @@ const getApiErrorMessage = (payload, response) => {
     `Error API ${response.status}`
 
   if (PRISMA_ERROR_PATTERN.test(rawMessage)) {
-    return 'La API no pudo conectarse correctamente a Prisma/MySQL. Revisa DATABASE_URL o vuelve temporalmente a RUBIK_DATA_ADAPTER=json.'
+    return `La API no pudo conectarse correctamente a Prisma/MySQL: ${rawMessage}`
   }
 
   return rawMessage
@@ -180,6 +211,10 @@ export async function apiRequest(endpoint, options = {}) {
   if (response.status === 401 && auth && !retrying) {
     clearApiSession()
     return apiRequest(endpoint, { ...options, retrying: true })
+  }
+
+  if (response.status === 401 && auth && retrying) {
+    expireApiSession()
   }
 
   if (!response.ok) {

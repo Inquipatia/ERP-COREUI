@@ -20,6 +20,24 @@ export const STORAGE_KEYS = {
 
 const canUseLocalStorage = () => typeof window !== 'undefined' && Boolean(window.localStorage)
 
+export const API_FALLBACK_EVENT = 'rubik-api-fallback'
+export const API_FALLBACK_MESSAGE = 'API no disponible, usando respaldo local temporal'
+
+export const notifyApiFallback = ({ key, resource, error } = {}) => {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return
+
+  window.dispatchEvent(
+    new CustomEvent(API_FALLBACK_EVENT, {
+      detail: {
+        key,
+        resource,
+        message: API_FALLBACK_MESSAGE,
+        error: error?.message || String(error || ''),
+      },
+    }),
+  )
+}
+
 const API_SYNC_BY_STORAGE_KEY = {
   [STORAGE_KEYS.users]: 'users',
   [STORAGE_KEYS.clients]: 'clients',
@@ -76,6 +94,7 @@ const syncCollectionDiffToApi = async (key, previousValue = [], nextValue = []) 
   try {
     await Promise.all(operations)
   } catch (error) {
+    notifyApiFallback({ key, resource, error })
     console.warn(`API sync failed for ${key}. Using localStorage fallback.`, error)
   }
 }
@@ -227,6 +246,7 @@ export const useLocalStorageState = (key, initialValue) => {
           refreshing: false,
           error: 'No se pudo conectar con la API',
         })
+        notifyApiFallback({ key, resource, error })
         console.warn(`API load failed for ${key}. Using localStorage fallback.`, error)
         return []
       }

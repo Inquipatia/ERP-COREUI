@@ -1,4 +1,4 @@
-import { readStorage, writeStorage } from './storage'
+import { notifyApiFallback, readStorage, writeStorage } from './storage'
 import { getApiBaseUrl } from '../services/apiClient'
 
 export const API_BASE_URL = getApiBaseUrl()
@@ -80,6 +80,7 @@ export const createApiStorageAdapter = ({
       const items = Array.isArray(payload?.items) ? payload.items : payload
       return saveLocal(items)
     } catch (error) {
+      notifyApiFallback({ key: storageKey, resource: endpoint, error })
       console.warn(`API no disponible para ${endpoint}; usando localStorage temporal.`, error)
       return getLocal()
     }

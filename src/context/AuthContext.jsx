@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import {
   canAccessPath as canAccessAuthPath,
   clearCurrentUser,
@@ -7,12 +7,23 @@ import {
   setCurrentUser,
   userHasPermission,
 } from '../utils/authStorage'
-import { clearApiSession, post as apiPost, setApiSession } from '../services/apiClient'
+import { API_AUTH_EXPIRED_EVENT, clearApiSession, post as apiPost, setApiSession } from '../services/apiClient'
 
 const AuthContext = createContext(null)
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUserState] = useState(() => getCurrentUser())
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      clearCurrentUser()
+      clearApiSession()
+      setCurrentUserState(null)
+    }
+
+    window.addEventListener(API_AUTH_EXPIRED_EVENT, handleAuthExpired)
+    return () => window.removeEventListener(API_AUTH_EXPIRED_EVENT, handleAuthExpired)
+  }, [])
 
   const value = useMemo(
     () => ({
