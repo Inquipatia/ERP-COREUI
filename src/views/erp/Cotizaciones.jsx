@@ -28,6 +28,7 @@ import {
 import { mockQuotes } from '../../data/mockQuotes'
 import { createLocalId, STORAGE_KEYS, useLocalStorageState } from '../../utils/storage'
 import { exportListToExcel } from '../../utils/exportListToExcel'
+import { downloadQuoteExcel, downloadQuotePdf } from '../../services/documentExportApi'
 import { createQuote, deleteQuote, listQuotes } from '../../services/quotesApi'
 
 const emptyFilters = {
@@ -183,6 +184,7 @@ const Cotizaciones = () => {
   const [filters, setFilters] = useState(emptyFilters)
   const [message, setMessage] = useState('')
   const [selectedQuote, setSelectedQuote] = useState(null)
+  const [exportingQuoteId, setExportingQuoteId] = useState(null)
 
   useEffect(() => {
     let isMounted = true
@@ -358,6 +360,34 @@ const Cotizaciones = () => {
     } catch (exportError) {
       console.error('Error exportando listado de cotizaciones:', exportError)
       setMessage(exportError.message || 'No se pudo exportar el listado de cotizaciones.')
+    }
+  }
+
+  const handleDownloadQuotePdf = async (quote) => {
+    setExportingQuoteId(`${quote.id}-pdf`)
+
+    try {
+      await downloadQuotePdf(quote.id, `cotizacion-${quote.quoteNumber}.pdf`)
+      setMessage(`PDF generado desde API para la cotizacion ${quote.quoteNumber}.`)
+    } catch (error) {
+      console.error('Error exportando PDF de cotizacion desde API:', error)
+      setMessage(error.message || 'No se pudo generar el PDF de la cotizacion desde la API.')
+    } finally {
+      setExportingQuoteId(null)
+    }
+  }
+
+  const handleDownloadQuoteExcel = async (quote) => {
+    setExportingQuoteId(`${quote.id}-excel`)
+
+    try {
+      await downloadQuoteExcel(quote.id, `cotizacion-${quote.quoteNumber}.xlsx`)
+      setMessage(`Excel generado desde API para la cotizacion ${quote.quoteNumber}.`)
+    } catch (error) {
+      console.error('Error exportando Excel de cotizacion desde API:', error)
+      setMessage(error.message || 'No se pudo generar el Excel de la cotizacion desde la API.')
+    } finally {
+      setExportingQuoteId(null)
     }
   }
 
@@ -600,6 +630,24 @@ const Cotizaciones = () => {
                             >
                               Eliminar
                             </CButton>
+                            <CButton
+                              color="dark"
+                              variant="outline"
+                              type="button"
+                              disabled={exportingQuoteId === `${quote.id}-pdf`}
+                              onClick={() => handleDownloadQuotePdf(quote)}
+                            >
+                              {exportingQuoteId === `${quote.id}-pdf` ? 'PDF...' : 'PDF'}
+                            </CButton>
+                            <CButton
+                              color="success"
+                              variant="outline"
+                              type="button"
+                              disabled={exportingQuoteId === `${quote.id}-excel`}
+                              onClick={() => handleDownloadQuoteExcel(quote)}
+                            >
+                              {exportingQuoteId === `${quote.id}-excel` ? 'Excel...' : 'Excel'}
+                            </CButton>
                           </CButtonGroup>
                         </CTableDataCell>
                       </CTableRow>
@@ -703,6 +751,28 @@ const Cotizaciones = () => {
         </CModalBody>
 
         <CModalFooter>
+          {selectedQuote && (
+            <>
+              <CButton
+                color="dark"
+                variant="outline"
+                type="button"
+                disabled={exportingQuoteId === `${selectedQuote.id}-pdf`}
+                onClick={() => handleDownloadQuotePdf(selectedQuote)}
+              >
+                {exportingQuoteId === `${selectedQuote.id}-pdf` ? 'PDF...' : 'PDF'}
+              </CButton>
+              <CButton
+                color="success"
+                variant="outline"
+                type="button"
+                disabled={exportingQuoteId === `${selectedQuote.id}-excel`}
+                onClick={() => handleDownloadQuoteExcel(selectedQuote)}
+              >
+                {exportingQuoteId === `${selectedQuote.id}-excel` ? 'Excel...' : 'Excel'}
+              </CButton>
+            </>
+          )}
           <CButton color="secondary" type="button" onClick={() => setSelectedQuote(null)}>
             Cerrar
           </CButton>

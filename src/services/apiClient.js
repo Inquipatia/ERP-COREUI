@@ -72,6 +72,26 @@ const parseResponsePayload = async (response) => {
   return response.text().catch(() => null)
 }
 
+const getFileNameFromContentDisposition = (contentDisposition = '') => {
+  const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (encodedMatch?.[1]) return decodeURIComponent(encodedMatch[1].replace(/"/g, '').trim())
+
+  const match = contentDisposition.match(/filename="?([^";]+)"?/i)
+  return match?.[1]?.trim() || ''
+}
+
+const downloadBlob = (blob, fileName) => {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
 const normalizeRequestBody = (body) => {
   if (body === undefined || body === null) return undefined
   if (typeof FormData !== 'undefined' && body instanceof FormData) return body
@@ -224,6 +244,72 @@ export async function apiRequest(endpoint, options = {}) {
   return payload
 }
 
+export async function downloadFile(endpoint, options = {}) {
+  const {
+    auth = true,
+    retrying = false,
+    headers = {},
+    body,
+    method = 'GET',
+    expectedContentType = '',
+    defaultFileName = 'rubik-export',
+  } = options
+  const requestBody = normalizeRequestBody(body)
+  const session = auth ? await ensureApiSession() : null
+  const requestHeaders = {
+    ...(isFormDataBody(body) ? {} : body ? { 'Content-Type': 'application/json' } : {}),
+    ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
+    ...headers,
+  }
+
+  const response = await fetch(buildUrl(endpoint), {
+    method,
+    headers: requestHeaders,
+    body: requestBody,
+  })
+
+  if (response.status === 401 && auth && !retrying) {
+    clearApiSession()
+    return downloadFile(endpoint, { ...options, retrying: true })
+  }
+
+  if (response.status === 401 && auth && retrying) {
+    expireApiSession()
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+
+  if (!response.ok) {
+    const payload = await parseResponsePayload(response.clone())
+    throw new Error(getApiErrorMessage(payload, response))
+  }
+
+  if (
+    expectedContentType &&
+    !contentType.toLowerCase().includes(expectedContentType.toLowerCase())
+  ) {
+    throw new Error(`La API devolvio ${contentType || 'sin content-type'} en vez de ${expectedContentType}.`)
+  }
+
+  const blob = await response.blob()
+  if (!blob || blob.size === 0) {
+    throw new Error('La API devolvio un archivo vacio.')
+  }
+
+  const fileName =
+    getFileNameFromContentDisposition(response.headers.get('content-disposition') || '') ||
+    defaultFileName
+
+  downloadBlob(blob, fileName)
+
+  return {
+    ok: true,
+    fileName,
+    size: blob.size,
+    contentType,
+  }
+}
+
 const getCollectionEndpoint = (resource) => {
   if (resource === 'financeMovements') return '/finance/movements'
   if (resource === 'workOrders') return '/work-orders'
@@ -281,6 +367,7 @@ export const apiClient = {
   put,
   patch,
   delete: remove,
+  downloadFile,
   axios,
 }
 

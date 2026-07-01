@@ -31,6 +31,7 @@ import {
 } from '@coreui/react'
 import { CChartBar, CChartDoughnut } from '@coreui/react-chartjs'
 import { useAuth } from '../../../context/AuthContext'
+import { downloadDocumentExcel, downloadDocumentPdf } from '../../../services/documentExportApi'
 import { getDocumentStats, listDocuments } from '../../../services/documentsApi'
 import { exportListToExcel } from '../../../utils/exportListToExcel'
 
@@ -358,89 +359,43 @@ const Documentos = () => {
     setMessage('Documento eliminado localmente.')
   }
 
-  const getDocumentPayload = (document) => {
-    if (document.payload) {
-      return document.payload
-    }
-
-    return {
-      company: {},
-      seller: {
-        name: document.vendedor || '',
-        email: '',
-      },
-      client: {
-        client: document.cliente || '',
-        company: document.empresa || '',
-        attention: document.cliente || '',
-        rut: '',
-        phone: '',
-        email: '',
-        comuna: '',
-        commune: '',
-        address: '',
-      },
-      quote: {
-        quoteNumber: document.numeroDocumento || '',
-        date: document.fecha || '',
-        subject: document.observaciones || '',
-        condition: '',
-        ivaRate: 19,
-      },
-      quoteItems: document.items || [],
-      amounts: {
-        net: document.montoNeto || 0,
-        iva: document.iva || 0,
-        total: document.total || 0,
-      },
-    }
-  }
-
   const handleDownloadExcel = async (document) => {
-    if (!isQuoteDocument(document)) {
-      setMessage('La exportación Excel por ahora está disponible para cotizaciones.')
-      return
-    }
-
-    setExportingDocumentId(`${document.id}-excel`)
-
-    try {
-      const { exportQuoteToExcel } = await import('../../../utils/exportQuoteToExcel')
-      await exportQuoteToExcel(getDocumentPayload(document))
-      setMessage(`Excel generado para el documento ${document.numeroDocumento}.`)
-    } catch (error) {
-      console.error('Error exportando Excel desde documentos:', error)
-      setMessage(error.message || 'No se pudo generar el Excel del documento.')
-    } finally {
-      setExportingDocumentId(null)
-    }
+    return handleApiDownloadExcel(document)
   }
 
   const handleDownloadPdf = async (document) => {
-    if (!isQuoteDocument(document)) {
-      setMessage('La exportación PDF por ahora está disponible para cotizaciones.')
-      return
-    }
+    return handleApiDownloadPdf(document)
+  }
 
-    setExportingDocumentId(`${document.id}-pdf`)
+
+
+  const handleApiDownloadExcel = async (document) => {
+    setExportingDocumentId(`${document.id}-excel`)
 
     try {
-      const { exportQuoteToPdf } = await import('../../../utils/exportQuoteToPdf')
-      const result = await exportQuoteToPdf(getDocumentPayload(document))
-      setMessage(
-        result?.fallback === 'print'
-          ? result.message
-          : `PDF generado para el documento ${document.numeroDocumento}.`,
-      )
+      await downloadDocumentExcel(document.id, `documento-${document.numeroDocumento}.xlsx`)
+      setMessage(`Excel generado desde API para el documento ${document.numeroDocumento}.`)
     } catch (error) {
-      console.error('Error exportando PDF desde documentos:', error)
-      setMessage(error.message || 'No se pudo generar el PDF del documento.')
+      console.error('Error exportando Excel desde API:', error)
+      setMessage(error.message || 'No se pudo generar el Excel del documento desde la API.')
     } finally {
       setExportingDocumentId(null)
     }
   }
 
+  const handleApiDownloadPdf = async (document) => {
+    setExportingDocumentId(`${document.id}-pdf`)
 
+    try {
+      await downloadDocumentPdf(document.id, `documento-${document.numeroDocumento}.pdf`)
+      setMessage(`PDF generado desde API para el documento ${document.numeroDocumento}.`)
+    } catch (error) {
+      console.error('Error exportando PDF desde API:', error)
+      setMessage(error.message || 'No se pudo generar el PDF del documento desde la API.')
+    } finally {
+      setExportingDocumentId(null)
+    }
+  }
 
   const handleExportDocumentsList = async () => {
     try {
@@ -899,7 +854,7 @@ const Documentos = () => {
                             variant="outline"
                             type="button"
                             disabled={exportingDocumentId === `${document.id}-pdf`}
-                            onClick={() => handleDownloadPdf(document)}
+                            onClick={() => handleApiDownloadPdf(document)}
                           >
                             {exportingDocumentId === `${document.id}-pdf` ? 'PDF...' : 'PDF'}
                           </CButton>
@@ -909,7 +864,7 @@ const Documentos = () => {
                             variant="outline"
                             type="button"
                             disabled={exportingDocumentId === `${document.id}-excel`}
-                            onClick={() => handleDownloadExcel(document)}
+                            onClick={() => handleApiDownloadExcel(document)}
                           >
                             {exportingDocumentId === `${document.id}-excel` ? 'Excel...' : 'Excel'}
                           </CButton>
@@ -1004,6 +959,28 @@ const Documentos = () => {
           )}
         </CModalBody>
         <CModalFooter>
+          {selectedDocument && (
+            <>
+              <CButton
+                color="dark"
+                variant="outline"
+                type="button"
+                disabled={exportingDocumentId === `${selectedDocument.id}-pdf`}
+                onClick={() => handleApiDownloadPdf(selectedDocument)}
+              >
+                {exportingDocumentId === `${selectedDocument.id}-pdf` ? 'PDF...' : 'PDF'}
+              </CButton>
+              <CButton
+                color="success"
+                variant="outline"
+                type="button"
+                disabled={exportingDocumentId === `${selectedDocument.id}-excel`}
+                onClick={() => handleApiDownloadExcel(selectedDocument)}
+              >
+                {exportingDocumentId === `${selectedDocument.id}-excel` ? 'Excel...' : 'Excel'}
+              </CButton>
+            </>
+          )}
           <CButton color="secondary" type="button" onClick={() => setSelectedDocument(null)}>
             Cerrar
           </CButton>

@@ -396,6 +396,11 @@ export const populateQuoteWorkbook = (workbook, quotePayload) => {
 }
 
 export const exportQuoteToExcel = async (quotePayload) => {
+  const { exportQuotePayloadExcel } = await import('../services/documentExportApi')
+  return exportQuotePayloadExcel(quotePayload)
+}
+
+export const exportQuoteToExcelLocal = async (quotePayload) => {
   const response = await fetch('/templates/cotizacion-rubik.xlsx')
 
   if (!response.ok) {

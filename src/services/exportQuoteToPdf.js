@@ -1,9 +1,4 @@
-import { getApiBaseUrl } from './apiClient'
-
-const API_BASE_URL = getApiBaseUrl()
-
-const PDF_ENDPOINT = `${API_BASE_URL.replace(/\/$/, '')}/export/pdf`
-const PDF_REQUEST_TIMEOUT_MS = 60000
+import { exportQuotePayloadPdf } from './documentExportApi'
 
 const getQuoteNumber = (quote = {}) =>
   quote.quoteNumber ||
@@ -52,7 +47,8 @@ const normalizeQuoteForPdf = (quote = {}) => {
     items.reduce((sum, item) => sum + getItemTotal(item), 0)
   const taxAmount =
     getNumberValue(quote.taxAmount ?? quote.iva ?? quote.amounts?.iva) || Math.round(netAmount * 0.19)
-  const totalAmount = getNumberValue(quote.totalAmount ?? quote.total ?? quote.amounts?.total) || netAmount + taxAmount
+  const totalAmount =
+    getNumberValue(quote.totalAmount ?? quote.total ?? quote.amounts?.total) || netAmount + taxAmount
 
   return {
     ...quote,
@@ -80,66 +76,14 @@ const normalizeQuoteForPdf = (quote = {}) => {
   }
 }
 
-const getFileNameFromContentDisposition = (contentDisposition = '') => {
-  const encodedMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
-  if (encodedMatch?.[1]) return decodeURIComponent(encodedMatch[1].replace(/"/g, '').trim())
-
-  const match = contentDisposition.match(/filename="?([^";]+)"?/i)
-  return match?.[1]?.trim() || ''
-}
-
-const downloadBlob = (blob, fileName) => {
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-
-  link.href = url
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  window.URL.revokeObjectURL(url)
-}
-
 export const exportQuoteToPdf = async (quote) => {
   const payload = normalizeQuoteForPdf(quote)
-  const controller = new AbortController()
-  const timeoutId = window.setTimeout(() => controller.abort(), PDF_REQUEST_TIMEOUT_MS)
 
   try {
-    const response = await fetch(PDF_ENDPOINT, {
-      body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json' },
-      method: 'POST',
-      signal: controller.signal,
-    })
-
-    const contentType = response.headers.get('content-type') || ''
-
-    if (!response.ok) {
-      const errorPayload = contentType.includes('application/json')
-        ? await response.clone().json().catch(() => null)
-        : null
-      throw new Error(errorPayload?.error || `No se pudo generar el PDF. Estado ${response.status}.`)
-    }
-
-    if (!contentType.toLowerCase().includes('application/pdf')) {
-      throw new Error(`La API no devolvió un PDF. Content-Type: ${contentType || 'sin tipo'}.`)
-    }
-
-    const blob = await response.blob()
-    if (!blob || blob.size === 0) throw new Error('La API devolvió un PDF vacío.')
-
-    const headerFileName = getFileNameFromContentDisposition(response.headers.get('content-disposition') || '')
-    const fileName = headerFileName || `cotizacion-${payload.quoteNumber}.pdf`
-
-    downloadBlob(blob, fileName)
-
-    return { fileName, ok: true }
+    return exportQuotePayloadPdf(payload)
   } catch (error) {
-    console.error('Error exportando PDF de cotización:', error)
-    throw new Error(error.message || 'No se pudo generar el PDF de cotización.')
-  } finally {
-    window.clearTimeout(timeoutId)
+    console.error('Error exportando PDF de cotizacion:', error)
+    throw new Error(error.message || 'No se pudo generar el PDF de cotizacion.')
   }
 }
 
