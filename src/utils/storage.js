@@ -44,7 +44,6 @@ const API_SYNC_BY_STORAGE_KEY = {
   [STORAGE_KEYS.quotes]: 'quotes',
   [STORAGE_KEYS.documents]: 'documents',
   [STORAGE_KEYS.tenders]: 'tenders',
-  [STORAGE_KEYS.workOrders]: 'workOrders',
   [STORAGE_KEYS.financeMovements]: 'financeMovements',
   [STORAGE_KEYS.suppliers]: 'suppliers',
 }
