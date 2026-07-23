@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CAlert,
   CBadge,
@@ -282,7 +282,8 @@ const isRequester = (order, user) => normalizeEmail(order.requesterEmail) === no
 const isAssignee = (order, user) => normalizeEmail(order.assigneeEmail) === normalizeEmail(user?.email)
 
 const OrdenesTrabajo = () => {
-  const { currentUser, hasPermission } = useAuth()
+  const { currentUser, hasPermission, isAuthInitialized, isAuthenticated } = useAuth()
+  const activeWorkOrderRequestRef = useRef(null)
   const canCreateWorkOrders = canUserCreateWorkOrder(currentUser || {}, hasPermission)
   const canAssignWorkOrders = hasPermission('workorders.assign') || hasPermission('admin.all')
   const canCloseWorkOrders =
@@ -318,6 +319,8 @@ const OrdenesTrabajo = () => {
   const [workflowComment, setWorkflowComment] = useState('')
   const [workflowProgress, setWorkflowProgress] = useState(0)
   const workOrders = apiLoaded ? apiWorkOrders : fallbackWorkOrders
+  const canLoadWorkOrdersFromApi = isAuthInitialized && isAuthenticated
+  const currentUserEmail = currentUser?.email || ''
 
   const setWorkOrders = useCallback(
     (updater) => {
@@ -335,18 +338,34 @@ const OrdenesTrabajo = () => {
 
   const loadWorkOrdersFromApi = useCallback(
     async ({ silent = false } = {}) => {
+      if (!canLoadWorkOrdersFromApi) {
+        setIsApiLoading(false)
+        return
+      }
+
+      if (activeWorkOrderRequestRef.current) {
+        activeWorkOrderRequestRef.current.abort()
+      }
+
+      const controller = new AbortController()
+      activeWorkOrderRequestRef.current = controller
+
       if (!silent) {
         setIsApiLoading(true)
       }
 
       try {
-        const payload = await listWorkOrdersApi()
+        const payload = await listWorkOrdersApi({ signal: controller.signal })
+        if (controller.signal.aborted) return
+
         const items = extractWorkOrderItems(payload).map(normalizeWorkOrder)
         setApiWorkOrders(items)
         setFallbackWorkOrders(items)
         setApiLoaded(true)
         setApiError('')
       } catch (loadError) {
+        if (controller.signal.aborted || loadError?.name === 'AbortError') return
+
         console.error('Error cargando ordenes de trabajo desde API:', loadError)
         setApiLoaded(false)
         setApiError(
@@ -356,17 +375,36 @@ const OrdenesTrabajo = () => {
           ),
         )
       } finally {
-        if (!silent) {
+        if (activeWorkOrderRequestRef.current === controller) {
+          activeWorkOrderRequestRef.current = null
+        }
+
+        if (!silent && !controller.signal.aborted) {
           setIsApiLoading(false)
         }
       }
     },
-    [setFallbackWorkOrders],
+    [canLoadWorkOrdersFromApi, setFallbackWorkOrders],
   )
 
   useEffect(() => {
+    if (!isAuthInitialized) return undefined
+
+    if (!isAuthenticated) {
+      setIsApiLoading(false)
+      setApiLoaded(false)
+      return undefined
+    }
+
     void loadWorkOrdersFromApi()
-  }, [loadWorkOrdersFromApi])
+
+    return () => {
+      if (activeWorkOrderRequestRef.current) {
+        activeWorkOrderRequestRef.current.abort()
+        activeWorkOrderRequestRef.current = null
+      }
+    }
+  }, [currentUserEmail, isAuthenticated, isAuthInitialized, loadWorkOrdersFromApi])
 
   const normalizedOrders = useMemo(
     () => (Array.isArray(workOrders) ? workOrders : []).map(normalizeWorkOrder),

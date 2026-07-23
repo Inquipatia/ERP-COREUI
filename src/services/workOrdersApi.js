@@ -1,6 +1,6 @@
 import { get, post, put, patch, remove } from './apiClient'
 
-export const listWorkOrders = () => get('/work-orders')
+export const listWorkOrders = (options = {}) => get('/work-orders', options)
 export const getWorkOrderStats = () => get('/work-orders/stats')
 export const getWorkOrderActivity = () => get('/work-orders/activity')
 export const getWorkOrder = (id) => get(`/work-orders/${id}`)

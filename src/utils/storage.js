@@ -283,20 +283,23 @@ export const useLocalStorageState = (key, initialValue) => {
     }
   }, [key, reload])
 
-  const setSyncedValue = (nextValueOrUpdater) => {
-    setValue((previousValue) => {
-      const nextValue =
-        typeof nextValueOrUpdater === 'function'
-          ? nextValueOrUpdater(previousValue)
-          : nextValueOrUpdater
+  const setSyncedValue = useCallback(
+    (nextValueOrUpdater) => {
+      setValue((previousValue) => {
+        const nextValue =
+          typeof nextValueOrUpdater === 'function'
+            ? nextValueOrUpdater(previousValue)
+            : nextValueOrUpdater
 
-      if (apiLoadCompletedRef.current && canSyncCollectionWithApi(key, nextValue)) {
-        void syncCollectionDiffToApi(key, previousValue, nextValue)
-      }
+        if (apiLoadCompletedRef.current && canSyncCollectionWithApi(key, nextValue)) {
+          void syncCollectionDiffToApi(key, previousValue, nextValue)
+        }
 
-      return nextValue
-    })
-  }
+        return nextValue
+      })
+    },
+    [key],
+  )
 
   return [value, setSyncedValue, { ...apiState, reload }]
 }
