@@ -19,23 +19,32 @@ import CIcon from '@coreui/icons-react'
 import { cilLockLocked, cilUser } from '@coreui/icons'
 import { useAuth } from '../../context/AuthContext'
 import { getDefaultRouteForUser } from '../../utils/authStorage'
+import { clearPendingAuthRedirect, getPendingAuthRedirect } from '../../services/apiClient'
 
 const Login = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { currentUser, login } = useAuth()
+  const { authError, currentUser, isAuthInitialized, login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const requestedPath = location.state?.from?.pathname
+  const stateRequestedPath = location.state?.from?.pathname
+  const pendingRequestedPath = getPendingAuthRedirect()
+  const requestedPath =
+    stateRequestedPath && stateRequestedPath !== '/login'
+      ? stateRequestedPath
+      : pendingRequestedPath
 
   useEffect(() => {
-    if (currentUser) {
+    if (isAuthInitialized && currentUser) {
+      clearPendingAuthRedirect()
       navigate(requestedPath || getDefaultRouteForUser(currentUser), { replace: true })
     }
-  }, [currentUser, navigate, requestedPath])
+  }, [currentUser, isAuthInitialized, navigate, requestedPath])
+
+  const visibleError = error || authError
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -50,6 +59,7 @@ const Login = () => {
         return
       }
 
+      clearPendingAuthRedirect()
       navigate(requestedPath || getDefaultRouteForUser(result.user), { replace: true })
     } catch (loginError) {
       setError(loginError.message || 'No se pudo iniciar sesión.')
@@ -72,7 +82,7 @@ const Login = () => {
                       Acceso interno con roles, permisos y datos por perfil.
                     </p>
 
-                    {error && <CAlert color="danger">{error}</CAlert>}
+                    {visibleError && <CAlert color="danger">{visibleError}</CAlert>}
 
                     <CFormLabel htmlFor="loginEmail">Email</CFormLabel>
                     <CInputGroup className="mb-3">
@@ -102,19 +112,25 @@ const Login = () => {
                       />
                     </CInputGroup>
 
-                    <CButton color="primary" type="submit" className="w-100" disabled={isSubmitting}>
+                    <CButton
+                      color="primary"
+                      type="submit"
+                      className="w-100"
+                      disabled={isSubmitting}
+                    >
                       {isSubmitting ? 'Iniciando sesión...' : 'Iniciar sesión'}
                     </CButton>
                   </CForm>
                 </CCardBody>
               </CCard>
 
-              <CCard className="text-white bg-primary py-5 d-none d-md-flex" style={{ width: '44%' }}>
+              <CCard
+                className="text-white bg-primary py-5 d-none d-md-flex"
+                style={{ width: '44%' }}
+              >
                 <CCardBody className="text-center d-flex flex-column justify-content-center">
                   <h2>Rubik Creaciones</h2>
-                  <p className="mb-0">
-                    Acceso protegido para usuarios autorizados del ERP Rubik.
-                  </p>
+                  <p className="mb-0">Acceso protegido para usuarios autorizados del ERP Rubik.</p>
                 </CCardBody>
               </CCard>
             </CCardGroup>

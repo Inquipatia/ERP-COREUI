@@ -1,14 +1,22 @@
 import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
+import { CSpinner } from '@coreui/react'
 import { AppContent, AppSidebar, AppFooter, AppHeader } from '../components/index'
 import { useAuth } from '../context/AuthContext'
 import ApiFallbackAlert from '../components/ApiFallbackAlert'
 import AssistantFloatingChat from '../components/AssistantFloatingChat'
 
-
 const DefaultLayout = () => {
   const location = useLocation()
-  const { currentUser, canAccessPath } = useAuth()
+  const { currentUser, canAccessPath, isAuthInitialized } = useAuth()
+
+  if (!isAuthInitialized) {
+    return (
+      <div className="pt-3 text-center">
+        <CSpinner color="primary" variant="grow" />
+      </div>
+    )
+  }
 
   if (!currentUser) {
     return <Navigate to="/login" replace state={{ from: location }} />

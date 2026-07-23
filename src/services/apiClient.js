@@ -1,15 +1,38 @@
 const API_BASE_URL =
   import.meta.env.VITE_RUBIK_API_URL ||
   (import.meta.env.PROD ? '/api' : 'http://localhost:4300/api')
-const PRISMA_ERROR_PATTERN = /(prisma|database_url|mysql|p1000|p1001|p1002|p1003|p1010|can't reach database|authentication failed)/i
+const PRISMA_ERROR_PATTERN =
+  /(prisma|database_url|mysql|p1000|p1001|p1002|p1003|p1010|can't reach database|authentication failed)/i
 
-const API_SESSION_KEY = 'rubik.erp.apiSession'
-const CURRENT_USER_KEY = 'rubik.erp.currentUser'
-const TEMP_DEV_PASSWORD = '123456'
+export const API_SESSION_STORAGE_KEY = 'rubik.erp.apiSession'
+export const CURRENT_USER_STORAGE_KEY = 'rubik.erp.currentUser'
+
+const API_SESSION_KEY = API_SESSION_STORAGE_KEY
+const CURRENT_USER_KEY = CURRENT_USER_STORAGE_KEY
+const AUTH_REDIRECT_KEY = 'rubik.erp.authRedirect'
+const AUTH_DEBUG_ENABLED = Boolean(
+  import.meta.env.DEV && import.meta.env.VITE_RUBIK_AUTH_DEBUG !== 'false',
+)
 
 export const API_AUTH_EXPIRED_EVENT = 'rubik-auth-expired'
 
 let authRedirectRequested = false
+let authExpiredDispatched = false
+
+export class AuthSessionError extends Error {
+  constructor(
+    message = 'Sesion API invalida. Inicia sesion nuevamente.',
+    reason = 'invalid_session',
+  ) {
+    super(message)
+    this.name = 'AuthSessionError'
+    this.code = 'AUTH_SESSION_INVALID'
+    this.reason = reason
+  }
+}
+
+export const isAuthSessionError = (error) =>
+  error?.name === 'AuthSessionError' || error?.code === 'AUTH_SESSION_INVALID'
 
 const canUseLocalStorage = () => typeof window !== 'undefined' && Boolean(window.localStorage)
 
@@ -34,24 +57,66 @@ const removeStorage = (key) => {
   window.localStorage.removeItem(key)
 }
 
+const logAuthDebug = (message, details = {}) => {
+  if (!AUTH_DEBUG_ENABLED || typeof console === 'undefined') return
+  console.debug(`[Rubik auth] ${message}`, details)
+}
+
 const dispatchWindowEvent = (eventName, detail = {}) => {
   if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return
   window.dispatchEvent(new CustomEvent(eventName, { detail }))
 }
 
+const getCurrentRoutePath = () => {
+  if (typeof window === 'undefined') return ''
+
+  const hashPath = String(window.location.hash || '').replace(/^#/, '')
+  if (hashPath) return hashPath
+
+  return `${window.location.pathname || ''}${window.location.search || ''}` || ''
+}
+
+const isLoginPath = (path = '') => String(path || '').startsWith('/login')
+
+export const getPendingAuthRedirect = () => readJsonStorage(AUTH_REDIRECT_KEY, '')
+
+export const clearPendingAuthRedirect = () => {
+  removeStorage(AUTH_REDIRECT_KEY)
+}
+
+const rememberAuthRedirect = () => {
+  const currentPath = getCurrentRoutePath()
+
+  if (!currentPath || isLoginPath(currentPath)) return
+  writeJsonStorage(AUTH_REDIRECT_KEY, currentPath)
+}
+
 const redirectToLogin = () => {
   if (typeof window === 'undefined' || authRedirectRequested) return
 
-  const hashPath = String(window.location.hash || '').replace(/^#/, '')
-  const currentPath = hashPath || window.location.pathname || ''
+  const currentPath = getCurrentRoutePath()
 
-  if (currentPath.startsWith('/login')) return
+  if (isLoginPath(currentPath)) return
 
+  rememberAuthRedirect()
   authRedirectRequested = true
   window.location.hash = '/login'
 }
 
-const getStoredApiSession = () => readJsonStorage(API_SESSION_KEY, null)
+export const getStoredApiSession = () => readJsonStorage(API_SESSION_KEY, null)
+
+const normalizeEmail = (email = '') =>
+  String(email || '')
+    .trim()
+    .toLowerCase()
+
+const sessionMatchesCurrentUser = (session, currentUser) =>
+  Boolean(
+    session?.token &&
+    session?.user?.email &&
+    currentUser?.email &&
+    normalizeEmail(session.user.email) === normalizeEmail(currentUser.email),
+  )
 
 const buildUrl = (endpoint = '') => {
   if (String(endpoint).startsWith('http')) return endpoint
@@ -105,8 +170,16 @@ export const getApiBaseUrl = () => API_BASE_URL
 
 export const getCurrentWebUser = () => readJsonStorage(CURRENT_USER_KEY, null)
 
+export const hasValidStoredApiSession = (currentUser = getCurrentWebUser()) =>
+  sessionMatchesCurrentUser(getStoredApiSession(), currentUser)
+
 export const setApiSession = (session) => {
   authRedirectRequested = false
+  authExpiredDispatched = false
+  if (!session?.token) {
+    removeStorage(API_SESSION_KEY)
+    return null
+  }
   writeJsonStorage(API_SESSION_KEY, session)
   return session
 }
@@ -118,9 +191,14 @@ export const clearApiSession = () => {
 const expireApiSession = () => {
   clearApiSession()
   removeStorage(CURRENT_USER_KEY)
-  dispatchWindowEvent(API_AUTH_EXPIRED_EVENT, {
-    message: 'Sesion API expirada. Inicia sesion nuevamente.',
-  })
+
+  if (!authExpiredDispatched) {
+    authExpiredDispatched = true
+    dispatchWindowEvent(API_AUTH_EXPIRED_EVENT, {
+      message: 'Sesion API expirada. Inicia sesion nuevamente.',
+    })
+  }
+
   redirectToLogin()
 }
 
@@ -157,16 +235,16 @@ export const remove = async (endpoint, options = {}) =>
     method: 'DELETE',
   })
 
-export const loginToApi = async (currentUser = getCurrentWebUser()) => {
-  if (!currentUser?.email) {
-    throw new Error('No hay usuario local para iniciar sesion API.')
+export const loginToApi = async ({ email, password } = {}) => {
+  if (!email || !password) {
+    throw new Error('Email y password son requeridos para iniciar sesion API.')
   }
 
   const payload = await post(
     '/auth/login',
     {
-      email: currentUser.email,
-      password: currentUser.password || TEMP_DEV_PASSWORD,
+      email,
+      password,
     },
     { auth: false },
   )
@@ -189,37 +267,91 @@ const getApiErrorMessage = (payload, response) => {
   return rawMessage
 }
 
-const ensureApiSession = async () => {
+export const fetchApiCurrentUser = async (session = getStoredApiSession()) => {
+  if (!session?.token) {
+    throw new AuthSessionError('No hay token API guardado.', 'missing_token')
+  }
+
+  logAuthDebug('validating stored API session', {
+    authMethod: 'bearer',
+    hasToken: true,
+    sessionUserEmail: Boolean(session?.user?.email),
+  })
+
+  const response = await fetch(buildUrl('/auth/me'), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${session.token}`,
+    },
+  })
+  const payload = await parseResponsePayload(response)
+
+  logAuthDebug('stored API session validation finished', {
+    status: response.status,
+    ok: response.ok,
+    rejectedByApi: response.status === 401,
+  })
+
+  if (response.status === 401) {
+    throw new AuthSessionError('Sesion API expirada. Inicia sesion nuevamente.', 'api_401')
+  }
+
+  if (!response.ok) {
+    throw new Error(getApiErrorMessage(payload, response))
+  }
+
+  return payload?.user || null
+}
+
+const ensureApiSession = () => {
   const storedSession = getStoredApiSession()
   const currentUser = getCurrentWebUser()
 
-  if (
-    storedSession?.token &&
-    storedSession?.user?.email &&
-    currentUser?.email &&
-    storedSession.user.email.toLowerCase() === currentUser.email.toLowerCase()
-  ) {
+  if (sessionMatchesCurrentUser(storedSession, currentUser)) {
     return storedSession
   }
 
-  return loginToApi(currentUser)
+  const reason = !currentUser?.email
+    ? 'missing_user'
+    : !storedSession?.token
+      ? 'missing_token'
+      : 'session_user_mismatch'
+
+  throw new AuthSessionError('Sesion API no disponible. Inicia sesion nuevamente.', reason)
 }
 
 export async function apiRequest(endpoint, options = {}) {
-  const {
-    auth = true,
-    retrying = false,
-    headers = {},
-    body,
-    ...fetchOptions
-  } = options
+  const { auth = true, headers = {}, body, ...fetchOptions } = options
   const requestBody = normalizeRequestBody(body)
-  const session = auth ? await ensureApiSession() : null
+  let session = null
+
+  try {
+    session = auth ? ensureApiSession() : null
+  } catch (error) {
+    if (isAuthSessionError(error)) {
+      logAuthDebug('blocked protected request without a valid API session', {
+        endpoint,
+        reason: error.reason,
+      })
+      expireApiSession()
+    }
+
+    throw error
+  }
+
   const requestHeaders = {
     ...(isFormDataBody(body) ? {} : { 'Content-Type': 'application/json' }),
     ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
     ...headers,
   }
+
+  logAuthDebug('sending API request', {
+    endpoint,
+    method: fetchOptions.method || 'GET',
+    auth,
+    authMethod: auth ? 'bearer' : 'none',
+    sendsAuthorizationHeader: Boolean(requestHeaders.Authorization),
+  })
 
   const response = await fetch(buildUrl(endpoint), {
     ...fetchOptions,
@@ -228,13 +360,14 @@ export async function apiRequest(endpoint, options = {}) {
   })
   const payload = await parseResponsePayload(response)
 
-  if (response.status === 401 && auth && !retrying) {
-    clearApiSession()
-    return apiRequest(endpoint, { ...options, retrying: true })
-  }
-
-  if (response.status === 401 && auth && retrying) {
+  if (response.status === 401 && auth) {
+    logAuthDebug('API rejected protected request', {
+      endpoint,
+      status: response.status,
+      hasStoredSession: Boolean(getStoredApiSession()?.token),
+    })
     expireApiSession()
+    throw new AuthSessionError('Sesion API expirada. Inicia sesion nuevamente.', 'api_401')
   }
 
   if (!response.ok) {
@@ -247,7 +380,6 @@ export async function apiRequest(endpoint, options = {}) {
 export async function downloadFile(endpoint, options = {}) {
   const {
     auth = true,
-    retrying = false,
     headers = {},
     body,
     method = 'GET',
@@ -255,12 +387,35 @@ export async function downloadFile(endpoint, options = {}) {
     defaultFileName = 'rubik-export',
   } = options
   const requestBody = normalizeRequestBody(body)
-  const session = auth ? await ensureApiSession() : null
+  let session = null
+
+  try {
+    session = auth ? ensureApiSession() : null
+  } catch (error) {
+    if (isAuthSessionError(error)) {
+      logAuthDebug('blocked protected file request without a valid API session', {
+        endpoint,
+        reason: error.reason,
+      })
+      expireApiSession()
+    }
+
+    throw error
+  }
+
   const requestHeaders = {
     ...(isFormDataBody(body) ? {} : body ? { 'Content-Type': 'application/json' } : {}),
     ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
     ...headers,
   }
+
+  logAuthDebug('sending API file request', {
+    endpoint,
+    method,
+    auth,
+    authMethod: auth ? 'bearer' : 'none',
+    sendsAuthorizationHeader: Boolean(requestHeaders.Authorization),
+  })
 
   const response = await fetch(buildUrl(endpoint), {
     method,
@@ -268,13 +423,14 @@ export async function downloadFile(endpoint, options = {}) {
     body: requestBody,
   })
 
-  if (response.status === 401 && auth && !retrying) {
-    clearApiSession()
-    return downloadFile(endpoint, { ...options, retrying: true })
-  }
-
-  if (response.status === 401 && auth && retrying) {
+  if (response.status === 401 && auth) {
+    logAuthDebug('API rejected protected file request', {
+      endpoint,
+      status: response.status,
+      hasStoredSession: Boolean(getStoredApiSession()?.token),
+    })
     expireApiSession()
+    throw new AuthSessionError('Sesion API expirada. Inicia sesion nuevamente.', 'api_401')
   }
 
   const contentType = response.headers.get('content-type') || ''
@@ -288,7 +444,9 @@ export async function downloadFile(endpoint, options = {}) {
     expectedContentType &&
     !contentType.toLowerCase().includes(expectedContentType.toLowerCase())
   ) {
-    throw new Error(`La API devolvio ${contentType || 'sin content-type'} en vez de ${expectedContentType}.`)
+    throw new Error(
+      `La API devolvio ${contentType || 'sin content-type'} en vez de ${expectedContentType}.`,
+    )
   }
 
   const blob = await response.blob()
